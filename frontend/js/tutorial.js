@@ -53,7 +53,7 @@ export const TUTORIAL = [
 
   { expect: { type: 'attack', kind: 'atk', v: 6, base: 'forte' }, say: 'Primeira ação: meu Forte tem uma defesa escondida. Arrisca o <b>Ataque (6)</b> nele.', hl: ['hand:atk6', 'opp-base:forte'] },
   { say: 'Atravessou! Meu escudo era 3. O Forte ficou <b>danificado</b> — e a partir de agora qualquer defesa nele fica <b>visível</b> para você.', hl: ['opp-base:forte'] },
-  { expect: { type: 'store', kind: 'atk', v: 9 }, say: 'Segunda ação: <b>guarde o Canhão (9) na sua Torre</b>. Clique no Canhão e depois em "Guardar na Torre". Carta guardada fica fora da mão: ninguém troca nem rouba.', hl: ['hand:atk9', 'btn:Guardar', 'my-stored'] },
+  { expect: { type: 'store', kind: 'atk', v: 9 }, say: 'Segunda ação: <b>guarde o Canhão (9) na sua Torre</b>. Clique no Canhão e depois em "Guardar na Torre". Guardar é um jeito de usar a ação sem gastar carta: no começo do seu próximo turno você pega de volta de graça. Só cuidado: se a Torre cair, a carta guardada volta pro baralho.', hl: ['hand:atk9', 'btn:Guardar', 'my-stored'] },
 
   { say: 'Agora é a minha vez… e olha o que eu comprei: uma <b>Maré</b>! Quando alguém compra Maré, ela é revelada na hora e <b>cada jogador entrega 1 carta da própria mão ao outro</b>. Depois ela volta para o fundo do baralho.' },
   { mare: { give: C('atk', 1) } },

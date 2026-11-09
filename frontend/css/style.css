@@ -506,7 +506,8 @@ button { font: inherit; }
 .tut-progress span { display: block; height: 100%; width: 0; background: var(--gold-2); transition: width .4s; }
 .tut.shake { animation: shake .4s; }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
-.tut-hl { position: relative; z-index: 6; animation: tutGlow 1s infinite !important; border-radius: 12px; }
+.tut-hl { z-index: 6; animation: tutGlow 1s infinite !important; border-radius: 12px; }
+#hand .tut-hl, .tut-btn { position: relative; }
 @keyframes tutGlow {
   0%, 100% { box-shadow: 0 0 0 3px #ffd34d, 0 0 22px 6px rgba(255, 211, 77, .85); }
   50% { box-shadow: 0 0 0 3px rgba(255, 211, 77, .5), 0 0 8px 2px rgba(255, 211, 77, .4); }
@@ -517,6 +518,7 @@ button { font: inherit; }
   /* telas menores: o painel do Roku fica abaixo do tabuleiro, sem cobrir nada */
   #scr-game.tutorial .game { height: auto; min-height: 100dvh; }
   #scr-game.tutorial .table { flex-direction: column; align-items: center; }
+  #scr-game.tutorial .board-wrap { width: 100%; flex: none; }
   #scr-game.tutorial .tut { width: min(100%, 720px); align-self: center; padding: 10px; gap: 8px; }
   .tut-head img { width: 36px; height: 36px; }
   .tut-head span { display: none; }
