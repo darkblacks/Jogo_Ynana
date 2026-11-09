@@ -4,6 +4,7 @@ import * as T from './tournament.js';
 import { RULES_HTML } from './rules.js';
 import { SERVER_URL } from './config.js';
 import { CHARACTERS, charById, lineFor, initials } from './characters.js';
+import { tutorialState, TUTORIAL } from './tutorial.js';
 
 const HUMAN = 0;
 const AI = 1;
@@ -49,6 +50,7 @@ document.addEventListener('click', (e) => {
 $('#rules-body').innerHTML = RULES_HTML;
 
 function refreshMenu() {
+  $('#btn-tutorial').classList.toggle('new', !SAVE.tutDone);
   const b = $('#btn-continue');
   if (SAVE.game && SAVE.game.mode === 'quick') { b.hidden = false; b.textContent = 'Continuar partida'; }
   else if (SAVE.t && SAVE.t.champion == null) { b.hidden = false; b.textContent = 'Continuar torneio'; }
@@ -76,7 +78,7 @@ function avatarHtml(ch, cls = '') {
 function renderLevels() {
   const g = $('#level-grid');
   g.innerHTML = '';
-  const list = CHARACTERS.slice().sort((a, b) => (a.boss || 9) - (b.boss || 9) || (a.extra ? 1 : 0) - (b.extra ? 1 : 0));
+  const list = CHARACTERS.slice().sort((a, b) => (b.power || 0) - (a.power || 0));
   for (const ch of list) {
     const b = h('button', 'level-card char-card');
     b.innerHTML = `${avatarHtml(ch, 'big')}
@@ -289,7 +291,7 @@ function showVersus(ch, starter) {
 let speechTimer;
 function say(situation, force = false) {
   const ch = oppChar();
-  if (!ch) return;
+  if (!ch || G.mode === 'tutorial') return;
   if (!force && Math.random() > 0.7) return;
   const line = lineFor(ch, situation);
   if (!line) return;
@@ -322,6 +324,7 @@ function enterGame() {
     crest.style.background = ch ? ch.color : LV_COLOR[tierOf(lv)] || '#1d7d7a';
   }
   $('#speech').classList.remove('show');
+  $('#scr-game').classList.toggle('tutorial', G.mode === 'tutorial');
   $('#opp-name').textContent = G.names[AI];
   $('#hud-series').innerHTML = seriesText();
   $('#log-list').innerHTML = '';
@@ -330,6 +333,7 @@ function enterGame() {
 }
 
 function seriesText() {
+  if (G.mode === 'tutorial') return 'Tutorial';
   if (G.mode === 'online') return `Contra um amigo · Placar ${G.score ? G.score[0] + ' x ' + G.score[1] : '0 x 0'}`;
   if (G.mode !== 'tournament' || !SAVE.t) return 'Partida rápida';
   const t = SAVE.t;
@@ -348,6 +352,7 @@ $('#btn-speed').onclick = () => {
 };
 $('#btn-log').onclick = () => $('#log').classList.toggle('open');
 $('#btn-quit').onclick = () => {
+  if (G.mode === 'tutorial') { tutQuit(); return; }
   if (G.mode === 'online') {
     showModal(`<h2>Partida online</h2><p>Sala <b>${esc(G.code)}</b>. Se você sair, pode voltar depois pelo mesmo link enquanto a sala existir.</p>
       <div class="row center">
@@ -443,6 +448,7 @@ function askAction() {
 }
 function submit(a) {
   if (awaiting !== 'action' || !E.isLegal(G.state, a)) return;
+  if (G.expect && !tutMatches(a, G.expect)) { tutNudge(); selected = null; render(); return; }
   awaiting = null;
   selected = null;
   const r = resolver; resolver = null; promptCancel = null;
@@ -724,6 +730,7 @@ function render() {
 
   renderHand(selCard);
   renderStatus(selCard);
+  applyTutHl();
 }
 
 function renderHand() {
@@ -741,6 +748,7 @@ function renderHand() {
     const b = h('button', 'hcard');
     b.style.backgroundImage = `url(${img(c)})`;
     b.setAttribute('aria-label', E.cardName(c));
+    b.dataset.k = c.kind + c.v;
     if (c.id === selected) b.classList.add('sel');
     if (!myTurn) b.classList.add('dim');
     if (newIds.has(c.id)) b.classList.add('new');
@@ -763,7 +771,8 @@ function renderStatus(selCard) {
   const btn = (label, cls, fn) => { const b = h('button', 'btn small ' + cls, label); b.onclick = fn; acts.append(b); return b; };
   if (s.phase === 'over') { txt.innerHTML = s.winner === HUMAN ? '<b>Você venceu!</b>' : `<b>${esc(G.names[AI])}</b> venceu.`; return; }
   if (awaiting !== 'action') {
-    if (s.phase === 'mare' && G.mode === 'online') txt.innerHTML = `Aguardando <b>${esc(G.names[AI])}</b> escolher a carta da Maré…`;
+    if (G.mode === 'tutorial') txt.innerHTML = s.current === AI ? 'Vez do <b>Roku</b>…' : 'Leia o que o <b>Roku</b> está explicando.';
+    else if (s.phase === 'mare' && G.mode === 'online') txt.innerHTML = `Aguardando <b>${esc(G.names[AI])}</b> escolher a carta da Maré…`;
     else txt.innerHTML = s.current === AI ? `Vez de <b>${esc(G.names[AI])}</b>…` : 'Aguarde…';
     return;
   }
@@ -970,6 +979,156 @@ function finishGame() {
 }
 
 addEventListener('resize', () => { if (G && document.querySelector('#scr-game.active')) renderHand(); });
+
+// ---------------- tutorial (Roku) ----------------
+let tutResolve = null;
+
+function tutMatches(a, ex) {
+  if (a.type !== ex.type) return false;
+  if (ex.base && a.base !== ex.base) return false;
+  if (ex.kind) {
+    const c = G.state.players[HUMAN].hand.find((x) => x.id === a.cardId);
+    if (!c || c.kind !== ex.kind || c.v !== ex.v) return false;
+  }
+  return true;
+}
+
+function tutNudge() {
+  toast('Roku: calma! Faz primeiro o que eu falei 😉', 'sea');
+  const t = $('#tut');
+  t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake');
+}
+
+function applyTutHl() {
+  document.querySelectorAll('.tut-hl').forEach((e) => e.classList.remove('tut-hl'));
+  if (!G || G.mode !== 'tutorial' || !G.tutHl) return;
+  for (const spec of G.tutHl) {
+    const [what, arg] = spec.split(':');
+    let els = [];
+    if (what === 'opp-bases') els = E.BASES.map((b) => boardEls[AI].base[b]);
+    else if (what === 'my-bases') els = E.BASES.map((b) => boardEls[HUMAN].base[b]);
+    else if (what === 'opp-base') els = [boardEls[AI].base[arg]];
+    else if (what === 'my-base') els = [boardEls[HUMAN].base[arg]];
+    else if (what === 'opp-def') els = [boardEls[AI].def[arg].firstChild];
+    else if (what === 'my-def') els = [boardEls[HUMAN].def[arg].firstChild];
+    else if (what === 'my-stored') els = [boardEls[HUMAN].stored];
+    else if (what === 'deck') els = [boardEls[HUMAN].deck];
+    else if (what === 'hand') els = arg ? [...document.querySelectorAll(`#hand .hcard[data-k="${arg}"]`)] : [$('#hand')];
+    else if (what === 'hud-opp') els = [$('#opp-crest')];
+    else if (what === 'btn') els = [...document.querySelectorAll('#status-actions .btn')].filter((b) => b.textContent.includes(arg));
+    els.filter(Boolean).forEach((e) => e.classList.add('tut-hl'));
+  }
+}
+
+function tutSay(html, hl = [], withContinue = false, idx = 0) {
+  $('#tut-text').innerHTML = html;
+  $('#tut-bar').style.width = `${Math.round((idx / (TUTORIAL.length - 1)) * 100)}%`;
+  const acts = $('#tut-actions');
+  acts.innerHTML = '';
+  G.tutHl = hl;
+  render();
+  if (!withContinue) return Promise.resolve();
+  return new Promise((resolve) => {
+    const b = h('button', 'btn primary small', 'Continuar →');
+    b.onclick = () => { tutResolve = null; resolve(); };
+    tutResolve = () => b.click();
+    acts.append(b);
+    b.focus({ preventScroll: true });
+  });
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && tutResolve && $('#modal').hidden) { e.preventDefault(); tutResolve(); }
+});
+
+function rokuAction(s, spec) {
+  const c = spec.kind ? s.players[AI].hand.find((x) => x.kind === spec.kind && x.v === spec.v) : null;
+  const a = { type: spec.type, cardId: c && c.id, base: spec.base };
+  return E.isLegal(s, a) ? a : decideAction(s, AI, 'medio');
+}
+
+async function startTutorial() {
+  runToken++;
+  const token = runToken;
+  const state = tutorialState(E, SAVE.playerName || 'Você');
+  G = { mode: 'tutorial', levels: [null, 'medio'], names: [state.players[0].name, 'Roku'], state, log: [], charId: 'roku' };
+  delete state.initialEvents;
+  enterGame();
+  logLine('Tutorial com o Roku.', 'big');
+  logLine('Seu turno (1)', 'turn');
+  const alive = () => token === runToken && G && G.mode === 'tutorial';
+  for (let i = 0; i < TUTORIAL.length && alive(); i++) {
+    const st = TUTORIAL[i];
+    const s = G.state;
+    if (st.end) { tutEnd(); return; }
+    if (st.expect) {
+      tutSay(st.say, st.hl, false, i);
+      G.expect = st.expect;
+      const a = await askAction();
+      if (!alive() || !a) return;
+      G.expect = null;
+      G.tutHl = [];
+      if (a.type !== 'retrieve') newIds = new Set();
+      await play(E.act(s, a));
+    } else if (st.roku) {
+      tutSay('<i>Minha vez…</i>', [], false, i);
+      await wait(900);
+      if (!alive()) return;
+      await play(E.act(s, rokuAction(s, st.roku)));
+    } else if (st.steal) {
+      await askSteal(s.players[AI].hand.length);
+      if (!alive()) return;
+      // tanto faz a carta clicada: no tutorial, sai sempre uma carta que não muda a aula
+      let idx = s.players[AI].hand.findIndex((c) => c.kind === 'def' && c.v === 2);
+      await play(E.stealPick(s, Math.max(0, idx)));
+    } else if (st.mare) {
+      if (s.phase === 'mare') {
+        const g = s.players[AI].hand.find((c) => c.kind === st.mare.give.kind && c.v === st.mare.give.v) || s.players[AI].hand[0];
+        if (s.mare.need[AI]) await play(E.mareGive(s, AI, g.id));
+        if (s.phase === 'mare') {
+          const id = await askMare();
+          if (!alive() || !id) return;
+          await play(E.mareGive(s, HUMAN, id));
+        }
+      }
+    } else if (st.say) {
+      await tutSay(st.say, st.hl, true, i);
+    }
+  }
+}
+
+function tutEnd() {
+  SAVE.tutDone = true; persist();
+  $('#tut-text').innerHTML = 'Você venceu! Agora você já sabe jogar Gachaqui.';
+  $('#tut-actions').innerHTML = '';
+  $('#tut-bar').style.width = '100%';
+  G.tutHl = [];
+  render();
+  const roku = charById('roku');
+  setTimeout(() => {
+    showModal(`<div class="versus">
+      <div class="vs-pic" style="--c:${roku.color}"><img class="vs-bust" src="${roku.bust}" alt=""></div>
+      <h2 class="vs-name">Aula concluída!</h2>
+      <blockquote class="vs-quote">“Viu? Nem foi tão difícil. Só não conta pra Raposa que eu peguei leve.”</blockquote>
+      <p class="vs-blurb">Últimas dicas: o Canhão (9) é o ataque mais forte, mas empata com o Escudo 9. Ataque fraco em defesa escondida é arriscado — se perder, o outro ganha 2 ações. E não deixe a Torre aberta: quem derruba leva uma carta sua.</p>
+      <div class="row center">
+        <button class="btn ghost" id="te-menu">Menu</button>
+        <button class="btn ghost" id="te-again">Repetir tutorial</button>
+        <button class="btn primary" id="te-play">Jogar contra o Roku</button>
+      </div></div>`);
+    $('#te-menu').onclick = () => { hideModal(); G = null; go('menu'); };
+    $('#te-again').onclick = () => { hideModal(); startTutorial(); };
+    $('#te-play').onclick = () => { hideModal(); startQuick('roku'); };
+  }, 900);
+}
+
+function tutQuit() {
+  showModal(`<h2>Sair do tutorial?</h2><p>Você pode voltar quando quiser pelo menu.</p>
+    <div class="row center"><button class="btn ghost" id="tq-no">Continuar aula</button><button class="btn primary" id="tq-yes">Sair</button></div>`);
+  $('#tq-no').onclick = hideModal;
+  $('#tq-yes').onclick = () => { hideModal(); runToken++; G = null; go('menu'); };
+}
+$('#tut-skip').onclick = () => tutQuit();
+$('#btn-tutorial').onclick = () => startTutorial();
 
 // ---------------- modo online (contra um amigo) ----------------
 const ROOM_KEY = 'gachaqui.room.v1';

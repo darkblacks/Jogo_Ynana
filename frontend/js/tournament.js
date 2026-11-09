@@ -31,8 +31,7 @@ export function createTournament(playerName, bestOf) {
   const others = [...story, ...extras].slice(0, 5); // personagens da história têm prioridade
   shuffle(others);
   // adversário das quartas: o mais fraco dos sorteados
-  const rank = { facil: 0, medio: 1, dificil: 2, lendario: 3 };
-  others.sort((a, b) => rank[a.ai.base] - rank[b.ai.base] || (a.ai.search || 0) - (b.ai.search || 0));
+  others.sort((a, b) => (a.power || 0) - (b.power || 0));
   const first = others.shift();
   shuffle(others);
   const top = [{ name: playerName, level: null, human: true }, toPlayer(first), toPlayer(others[0]), toPlayer(semi)];

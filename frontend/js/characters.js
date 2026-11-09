@@ -3,6 +3,7 @@
 // Para editar: cada personagem tem retrato, força da IA, estilo de jogo e falas por situação.
 // As falas marcadas como sugestão podem ser trocadas à vontade — é só texto.
 //
+// power      ordem de força no torneio (maior = mais forte)
 // ai.base    nível de partida: 'facil' | 'medio' | 'dificil' | 'lendario'
 // ai.search  quantas simulações por jogada (0 = só heurística). Mais = mais forte e mais lento.
 // ai.style   personalidade em jogo (1 = neutro): atk, def, risk, tower, mare, thief
@@ -18,6 +19,7 @@
 export const CHARACTERS = [
   {
     id: 'ynana',
+    power: 7, // força relativa (7 = mais forte)
     name: 'Ynana Merx',
     short: 'Ynana',
     title: 'A pequena estrategista',
@@ -46,6 +48,7 @@ export const CHARACTERS = [
   },
   {
     id: 'rufus',
+    power: 6, // força relativa (7 = mais forte)
     name: 'Rufus Albarata',
     short: 'Rufus',
     title: 'O Ursão',
@@ -74,6 +77,7 @@ export const CHARACTERS = [
   },
   {
     id: 'hela',
+    power: 5, // força relativa (7 = mais forte)
     name: 'Hela Falcobane',
     short: 'Hela',
     title: 'A pirata caolha',
@@ -101,6 +105,7 @@ export const CHARACTERS = [
   },
   {
     id: 'almosafar',
+    power: 3, // força relativa (7 = mais forte)
     name: 'Al-Mosafar',
     short: 'Al-Mosafar',
     title: 'O aristocrata',
@@ -128,49 +133,87 @@ export const CHARACTERS = [
   },
   {
     id: 'ibrahim',
+    power: 2, // força relativa (7 = mais forte)
     name: 'Samir Ibrahim Sanlucaco',
     short: 'Ibrahim',
-    title: 'O bandido do porto',
-    blurb: 'Gente do povão, das ruas e dos bandidos locais. De olho na sua Torre — e nas suas cartas.',
-    avatar: null, // falta a imagem
-    bust: null,
-    color: '#6b4a2a',
+    title: 'O chefe do cais',
+    blurb: 'Bandido do povão, coberto de ouro e de escamas. De olho na sua Torre — e nas suas cartas.',
+    avatar: 'assets/chars/ibrahim.webp',
+    bust: 'assets/chars/ibrahim-busto.webp',
+    color: '#7a4a1e',
     styleLabel: 'Ladino',
     ai: { base: 'medio', search: 0, noise: 1.1, style: { thief: 2.2, mare: 1.6, atk: 1.1 } },
     lines: {
-      intro: ['Relaxa, eu só vim jogar… e talvez levar umas cartas.', 'Que torre bonita a sua. Seria uma pena…'],
-      start: ['Valendo!'],
+      intro: ['Relaxa. Eu só vim jogar… e talvez levar umas cartas.', 'Deixa eu acender isso aqui primeiro. Pronto. Pode perder.'],
+      start: ['Valendo!', 'Mesa limpa, bolso cheio.'],
       hit: ['Essa foi de graça.', 'Ninguém viu nada, né?'],
       fell: ['Caiu! Que azar o seu.', 'Prédio velho, parceiro.'],
-      blocked: ['Opa, opa. Calma aí.'],
-      defended: ['Tá trancado, parceiro.'],
+      blocked: ['Opa, opa. Calma aí.', 'Tsc. Esse escudo vai me custar caro.'],
+      defended: ['Tá trancado, parceiro.', 'Aqui ninguém entra sem pagar.'],
       hurt: ['Ei! Isso é desonesto… eu acho.'],
-      lost: ['Tranquilo. Tenho outros esconderijos.'],
+      lost: ['Tranquilo. Tenho outros esconderijos.', 'Isso vai sair do seu bolso depois.'],
       steal: ['Achado não é roubado.', 'Isso aqui é meu agora.'],
       mare: ['A maré mexeu nos bolsos de todo mundo, hein?'],
       bonus: ['Duas mãos leves, duas jogadas.'],
-      win: ['Foi bom negociar. Pra mim.'],
-      lose: ['Tá bom, tá bom. Hoje eu deixo.'],
+      win: ['Foi bom negociar. Pra mim.', 'Mais um anel pra coleção.'],
+      lose: ['Tá bom, tá bom. Hoje eu deixo.', 'Cê teve sorte. Eu tenho memória.'],
     },
   },
-  // Personagens provisórios: completam o torneio até chegarem as fichas dos outros personagens.
   {
-    id: 'tito', name: 'Marujo Tito', short: 'Tito', title: 'Grumete', blurb: 'Ainda aprendendo a dar nó.',
-    avatar: null, bust: null, color: '#3d7a3a', styleLabel: 'Afobado', extra: true,
-    ai: { base: 'facil' },
-    lines: { intro: ['É… é a minha vez já?'], hit: ['Acertei! Acho.'], lost: ['Ai, ai, ai.'], win: ['Eu ganhei?! Eu ganhei!'], lose: ['Ah… de novo.'] },
+    id: 'seraphine',
+    power: 4, // força relativa (7 = mais forte)
+    name: 'Seraphine Dreya',
+    short: 'Seraphine',
+    title: 'A dama da Andorinha',
+    blurb: 'Alta Elite, joias de ouro e olhos de felina. Voltou de Vyrwyll na Andorinha a tempo de resgatar a Ynana e o Rufus.',
+    avatar: 'assets/chars/seraphine.webp',
+    bust: 'assets/chars/seraphine-busto.webp',
+    color: '#9a7420',
+    styleLabel: 'Elegante',
+    ai: { base: 'dificil', search: 2, noise: 1.0, style: { def: 1.15, mare: 1.4, tower: 1.2, risk: 0.9 } },
+    lines: {
+      intro: ['Sente-se. Prometo ser gentil. No começo.', 'A Andorinha nunca chega atrasada. Eu também não.'],
+      start: ['Vamos ver do que você é feito.', 'Com elegância, por favor.'],
+      hit: ['Delicado, não?', 'Não leve para o lado pessoal.'],
+      fell: ['Que pena. Era tão bonita.', 'Ouro não enferruja. Torres caem.'],
+      blocked: ['Hm. Que deselegante.', 'Interessante. Muito interessante.'],
+      defended: ['Ah, não. Assim não, meu bem.', 'Você bateu na porta errada.'],
+      hurt: ['Arranhou o verniz. Só o verniz.', 'Ousado. Eu gosto.'],
+      lost: ['Eu tenho outras.', 'Hm. Vou cobrar isso com juros e joias.'],
+      steal: ['Combina mais comigo, você não acha?'],
+      mare: ['O mar sempre me traz presentes.'],
+      bonus: ['Duas jogadas. Uma para você assistir, outra para aplaudir.'],
+      win: ['Foi um prazer. Para mim, principalmente.', 'Volte quando tiver mais cartas na manga.'],
+      lose: ['Muito bem. Hoje você ganhou um brilho a mais.', 'Hm. Guardarei esta derrota com as minhas joias.'],
+    },
   },
   {
-    id: 'gaivota', name: 'Dona Gaivota', short: 'Gaivota', title: 'Comerciante do cais', blurb: 'Rouba tudo que brilha.',
-    avatar: null, bust: null, color: '#5d7f99', styleLabel: 'Gananciosa', extra: true,
-    ai: { base: 'facil', style: { thief: 1.8, mare: 1.4 } },
-    lines: { intro: ['Que cartas bonitas… são suas?'], steal: ['Brilhava. Agora é minha.'], win: ['Tudo que brilha vem pra mim!'], lose: ['Hmpf. Nem brilhava tanto.'] },
-  },
-  {
-    id: 'bras', name: 'Capitão Brás', short: 'Brás', title: 'Capitão mercante', blurb: 'Nunca deixa o Porto sem escudo.',
-    avatar: null, bust: null, color: '#8a6a1c', styleLabel: 'Cauteloso', extra: true,
-    ai: { base: 'medio', style: { def: 1.4, atk: 0.85 } },
-    lines: { intro: ['Escudo no Porto, sempre.'], defended: ['Eu avisei: escudo no Porto.'], win: ['Prudência vence tempestade.'], lose: ['Bom vento pra você.'] },
+    id: 'roku',
+    power: 1, // força relativa (7 = mais forte)
+    name: 'Roku Sonedrasta',
+    short: 'Roku',
+    title: 'O professor de rua',
+    blurb: 'Nascido em Albahara, cria do povão. Quem te ensina a jogar Gachaqui — e quem chama a Ynana de "Raposa".',
+    avatar: 'assets/chars/roku.webp',
+    bust: 'assets/chars/roku-busto.webp',
+    color: '#2b3a55',
+    styleLabel: 'Malandro',
+    ai: { base: 'medio', search: 0, noise: 1.3, randomChance: 0.08, style: { atk: 1.1, mare: 1.2 } },
+    lines: {
+      intro: ['Ué, já quer jogar comigo? Gostei.', 'Eu te ensinei tudo… quase tudo.'],
+      start: ['Lembra do que eu te ensinei, hein?', 'Bora, sem medo.'],
+      hit: ['Viu? Base sem escudo é convite.', 'Essa eu te ensinei, lembra?'],
+      fell: ['Caiu! Aula grátis.', 'Sem defesa, sem base.'],
+      blocked: ['Boa! Tá aprendendo.', 'Ih, escudo maior. Bem feito pra mim.'],
+      defended: ['Achou que eu ia esquecer o escudo?', 'Lição do dia: defende antes.'],
+      hurt: ['Ai! Isso doeu no orgulho.', 'Olha só, o aluno tá batendo no mestre.'],
+      lost: ['Tá, essa foi boa. Muito boa.', 'A Raposa ia rir de mim agora.'],
+      steal: ['Pega uma, devolve nunca.'],
+      mare: ['Maré! Troca de presente, ninguém escolhe o que ganha.'],
+      bonus: ['Duas ações! Agradeço o escudo.'],
+      win: ['Bom jogo! Bora de novo?', 'Ainda não foi dessa vez, mas tá perto.'],
+      lose: ['Pronto. Não tenho mais nada pra te ensinar.', 'Ganhou do professor. Vai contar pra todo mundo, né?'],
+    },
   },
 ];
 

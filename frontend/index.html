@@ -22,6 +22,7 @@
       <p class="tagline">Ataque, defenda e derrube as três bases do adversário.</p>
       <div class="menu-buttons">
         <button class="btn big" id="btn-continue" hidden>Continuar torneio</button>
+        <button class="btn big tut-btn" id="btn-tutorial"><img src="assets/chars/roku.webp" alt=""> Tutorial com o Roku</button>
         <button class="btn big primary" data-go="tsetup">Torneio · 8 jogadores</button>
         <button class="btn big" data-go="quick">Partida rápida</button>
         <button class="btn big sea" id="btn-online">Jogar com um amigo</button>
@@ -145,6 +146,13 @@
           </div>
         </div>
         <aside class="log" id="log"><h3>Histórico</h3><ol id="log-list"></ol></aside>
+        <aside class="tut" id="tut" aria-live="polite">
+          <div class="tut-head"><img src="assets/chars/roku.webp" alt=""><div><b>Roku</b><span>Tutorial</span></div>
+            <button class="btn ghost small" id="tut-skip">Sair</button></div>
+          <div class="tut-text" id="tut-text"></div>
+          <div class="tut-actions" id="tut-actions"></div>
+          <div class="tut-progress"><span id="tut-bar"></span></div>
+        </aside>
       </div>
 
       <div class="status">

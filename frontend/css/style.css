@@ -480,3 +480,46 @@ button { font: inherit; }
   .speech { left: 0; font-size: .92rem; }
   #scr-game .crest { width: 34px; height: 34px; }
 }
+
+/* ---------- tutorial ---------- */
+.tut-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(180deg, #2a9a95, #135a58); }
+.tut-btn img { width: 30px; height: 30px; border-radius: 50%; box-shadow: 0 0 0 2px var(--gold); }
+.tut-btn.new { animation: tutBtn 1.4s infinite; }
+@keyframes tutBtn { 50% { box-shadow: inset 0 0 0 2px var(--gold), 0 0 0 4px rgba(226,184,90,.55), 0 0 18px rgba(226,184,90,.8); } }
+.tut { display: none; }
+#scr-game.tutorial .log { display: none !important; }
+#scr-game.tutorial #btn-log { display: none; }
+#scr-game.tutorial .tut {
+  display: flex; flex-direction: column; gap: 10px; width: 320px; flex: none;
+  background: linear-gradient(180deg, var(--parch), var(--parch-2)); color: var(--ink);
+  border-radius: 14px; padding: 14px; box-shadow: inset 0 0 0 2px var(--gold-2), 0 10px 30px rgba(0,0,0,.4);
+  align-self: center; max-height: 100%; overflow: auto;
+}
+.tut-head { display: flex; align-items: center; gap: 10px; }
+.tut-head img { width: 56px; height: 56px; border-radius: 50%; box-shadow: 0 0 0 3px var(--gold-2); }
+.tut-head div { flex: 1; display: grid; }
+.tut-head b { font-family: var(--display); font-size: 1.15rem; color: var(--navy); }
+.tut-head span { font-size: .85rem; color: var(--ink-soft); }
+.tut-text { font-size: 1.05rem; line-height: 1.5; position: relative; background: #fffaf0; border-radius: 12px; padding: 12px 14px; box-shadow: inset 0 0 0 1px rgba(184,134,46,.6); }
+.tut-actions { display: flex; justify-content: flex-end; min-height: 34px; }
+.tut-progress { height: 6px; background: rgba(184,134,46,.25); border-radius: 99px; overflow: hidden; }
+.tut-progress span { display: block; height: 100%; width: 0; background: var(--gold-2); transition: width .4s; }
+.tut.shake { animation: shake .4s; }
+@keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.tut-hl { position: relative; z-index: 6; animation: tutGlow 1s infinite !important; border-radius: 12px; }
+@keyframes tutGlow {
+  0%, 100% { box-shadow: 0 0 0 3px #ffd34d, 0 0 22px 6px rgba(255, 211, 77, .85); }
+  50% { box-shadow: 0 0 0 3px rgba(255, 211, 77, .5), 0 0 8px 2px rgba(255, 211, 77, .4); }
+}
+.hcard.tut-hl { transform: translateY(-10px); }
+#hand.tut-hl { border-radius: 14px; }
+@media (max-width: 1100px) {
+  /* telas menores: o painel do Roku fica abaixo do tabuleiro, sem cobrir nada */
+  #scr-game.tutorial .game { height: auto; min-height: 100dvh; }
+  #scr-game.tutorial .table { flex-direction: column; align-items: center; }
+  #scr-game.tutorial .tut { width: min(100%, 720px); align-self: center; padding: 10px; gap: 8px; }
+  .tut-head img { width: 36px; height: 36px; }
+  .tut-head span { display: none; }
+  .tut-text { font-size: .95rem; padding: 8px 10px; line-height: 1.4; }
+  .tut-actions { min-height: 0; }
+}

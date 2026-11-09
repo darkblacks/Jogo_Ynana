@@ -57,6 +57,7 @@ Testes (simula centenas de partidas IA x IA): `npm test` na raiz.
 
 ## Modos de jogo
 
+- **Tutorial com o Roku:** uma partida guiada, passo a passo, em que o Roku ensina cada regra na hora em que ela acontece.
 - **Torneio · 8 jogadores:** quartas, semifinal e final contra 7 capitães da IA (melhor de 1, 3 ou 5). Funciona sem backend.
 - **Partida rápida:** um jogo contra a IA no nível escolhido. Funciona sem backend.
 - **Jogar com um amigo:** cria uma sala e gera um link. Placar, revanche e reconexão automática.
@@ -67,14 +68,15 @@ Os adversários são personagens de *Os Contos de Ynana*, cada um com retrato, f
 
 | Personagem | Força | Estilo |
 |---|---|---|
-| Ynana Merx | Lendário (chefe final) | Estrategista |
-| Rufus Albarata | Difícil (semifinal) | Paciente, defende muito |
-| Hela Falcobane | Difícil | Impulsiva, ataca mesmo base defendida |
-| Al-Mosafar | Médio | Calculista, usa Torre e Maré |
-| Ibrahim | Médio | Ladino, mira a Torre para roubar cartas |
-| Tito, Gaivota, Brás | Fácil/Médio | provisórios, até chegarem os outros personagens |
+| Ynana Merx | 1ª — Lendário (chefe da final) | Estrategista |
+| Rufus Albarata | 2ª — Difícil (chefe da semifinal) | Paciente, defende muito |
+| Hela Falcobane | 3ª — Difícil | Impulsiva, ataca mesmo base defendida |
+| Seraphine Dreya | 4ª — Difícil | Elegante, gosta da Maré e da Torre |
+| Al-Mosafar | 5ª — Médio | Calculista |
+| Ibrahim | 6ª — Médio | Ladino, mira a Torre para roubar cartas |
+| Roku Sonedrasta | 7ª — Médio | Malandro; também é o professor do tutorial |
 
-No torneio, Ynana e Rufus sempre entram: o Rufus fica na metade do jogador (adversário da semifinal) e a Ynana na outra metade (adversária da final). Os outros cinco são sorteados.
+No torneio entram os 7. A posição na chave é sorteada, com três regras: o mais fraco enfrenta o jogador nas quartas, o Rufus fica na metade do jogador (semifinal) e a Ynana na outra metade (final).
 
 A IA não trapaceia: antes de cada simulação, as cartas escondidas do adversário são embaralhadas e redistribuídas.
 
