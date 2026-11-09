@@ -1,8 +1,6 @@
 // Endereço do backend (servidor do modo online).
 //
-// - Vazio: usa o mesmo endereço onde o site está (quando o backend também entrega o site).
-// - No Netlify: coloque o endereço do seu servidor, por exemplo:
-//     export const SERVER_URL = 'https://1-2-3-4.sslip.io';
-//   Se o site for publicado pelo Git, dá para não mexer aqui: crie no Netlify a variável
-//   de ambiente GACHAQUI_SERVER com esse endereço, e o build gera este arquivo sozinho.
-export const SERVER_URL = '';
+// Padrão: o servidor de produção em https://gachaqui.duckdns.org.
+// - Para rodar tudo localmente (backend entregando o site), deixe vazio: ''.
+// - No Netlify, a variável de ambiente GACHAQUI_SERVER, se existir, substitui este valor no build.
+export const SERVER_URL = 'https://gachaqui.duckdns.org';

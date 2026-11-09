@@ -900,7 +900,8 @@ const saveRoom = (r) => { try { r ? localStorage.setItem(ROOM_KEY, JSON.stringif
 // SERVER_URL aceita "https://servidor", "wss://servidor/ws" ou vazio (mesmo endereço do site)
 function serverBase() {
   const raw = (SERVER_URL || '').trim().replace(/\/+$/, '');
-  if (!raw) return location.origin;
+  // rodando local (localhost) com o backend entregando o site: usa o mesmo endereço
+  if (!raw || ['localhost', '127.0.0.1'].includes(location.hostname)) return location.origin;
   return raw.replace(/^ws(s?):/, 'http$1:').replace(/\/ws$/, '');
 }
 function serverUrl() {

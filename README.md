@@ -30,8 +30,8 @@ Quer que o Claude Code faça isso por você no servidor? Veja `deploy/INSTRUCOES
 
 ### 2. Frontend no Netlify
 
-- **Pelo Git (recomendado):** *Add new site → Import an existing project* → este repositório. Branch: `claude/serene-goodall-ko7s49` (ou `main`, depois de juntar). **Base directory: `frontend`**. Build command e publish directory já vêm do `frontend/netlify.toml`. Em *Site configuration → Environment variables*, crie `GACHAQUI_SERVER` com o endereço do backend (ex.: `https://1-2-3-4.sslip.io`) e faça *Trigger deploy*.
-- **Arrastando a pasta:** edite `frontend/js/config.js` com o endereço do backend e arraste a pasta `frontend` em https://app.netlify.com/drop (ou em *Deploys* do site).
+- **Pelo Git (recomendado):** *Add new site → Import an existing project* → este repositório. Branch: `claude/serene-goodall-ko7s49` (ou `main`, depois de juntar). **Base directory: `frontend`**. Build command e publish directory já vêm do `frontend/netlify.toml`. O endereço do backend já vem em `frontend/js/config.js` (`https://gachaqui.duckdns.org`). Para usar outro, crie a variável de ambiente `GACHAQUI_SERVER` no Netlify e faça *Trigger deploy*.
+- **Arrastando a pasta:** arraste a pasta `frontend` em https://app.netlify.com/drop (ou em *Deploys* do site).
 
 O backend só aceita conexões vindas de `https://gachaqui.netlify.app` (e das prévias do Netlify). Para liberar outro endereço, defina `ALLOWED_ORIGINS` no serviço.
 
