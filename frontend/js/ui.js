@@ -3,6 +3,7 @@ import { decideAction, chooseMareGive, chooseSteal, LEVELS } from './ai.js';
 import * as T from './tournament.js';
 import { RULES_HTML } from './rules.js';
 import { SERVER_URL } from './config.js';
+import { CHARACTERS, charById, lineFor, initials } from './characters.js';
 
 const HUMAN = 0;
 const AI = 1;
@@ -61,26 +62,37 @@ $('#btn-continue').onclick = () => {
   }
 };
 
-// ---------------- níveis / partida rápida ----------------
-const LEVEL_DESC = {
-  facil: 'Joga solto e erra bastante. Bom para aprender.',
-  medio: 'Conhece o básico: defende o que importa e ataca bases abertas.',
-  dificil: 'Simula jogadas futuras antes de decidir.',
-  lendario: 'Pensa muito mais longe. Boa sorte.',
-};
+// ---------------- personagens / partida rápida ----------------
 const LV_COLOR = { facil: '#3d7a3a', medio: '#8a6a1c', dificil: '#7c1513', lendario: '#4b2a7a' };
+const tierOf = (lv) => (typeof lv === 'string' ? lv : lv && lv.base) || 'medio';
+const tierLabel = (lv) => (LEVELS[tierOf(lv)] || LEVELS.medio).label;
+
+function avatarHtml(ch, cls = '') {
+  if (ch && ch.avatar) return `<img class="ava ${cls}" src="${ch.avatar}" alt="">`;
+  const bg = ch ? ch.color : '#a3211e';
+  return `<span class="ava ini ${cls}" style="background:${bg}">${ch ? initials(ch) : 'V'}</span>`;
+}
+
 function renderLevels() {
   const g = $('#level-grid');
   g.innerHTML = '';
-  for (const k of Object.keys(LEVELS)) {
-    const b = h('button', 'level-card', `<span class="badge lv-${k}">${LEVELS[k].label}</span><strong>IA ${LEVELS[k].label}</strong><span class="d">${LEVEL_DESC[k]}</span>`);
-    b.onclick = () => startQuick(k);
+  const list = CHARACTERS.slice().sort((a, b) => (a.boss || 9) - (b.boss || 9) || (a.extra ? 1 : 0) - (b.extra ? 1 : 0));
+  for (const ch of list) {
+    const b = h('button', 'level-card char-card');
+    b.innerHTML = `${avatarHtml(ch, 'big')}
+      <span class="cc-body">
+        <strong>${esc(ch.name)}</strong>
+        <span class="d">${esc(ch.title)}</span>
+        <span class="tags"><span class="badge lv-${tierOf(ch.ai)}">${tierLabel(ch.ai)}</span> <span class="badge style">${esc(ch.styleLabel)}</span></span>
+      </span>`;
+    b.onclick = () => startQuick(ch.id);
     g.append(b);
   }
 }
-function startQuick(level) {
-  const names = [SAVE.playerName || 'Você', `IA ${LEVELS[level].label}`];
-  startGame({ mode: 'quick', levels: [null, level], names, starter: Math.random() < 0.5 ? 0 : 1 });
+function startQuick(charId) {
+  const ch = charById(charId) || CHARACTERS[0];
+  const names = [SAVE.playerName || 'Você', ch.name];
+  startGame({ mode: 'quick', levels: [null, ch.ai], names, starter: Math.random() < 0.5 ? 0 : 1, charId: ch.id });
 }
 
 // ---------------- torneio ----------------
@@ -98,9 +110,10 @@ $('#btn-tstart').onclick = () => {
 function playerTag(t, idx, score, cls = '') {
   if (idx == null) return `<div class="b-p tbd"><span class="dot" style="background:#ccc"></span><span class="nm">a definir</span></div>`;
   const p = t.players[idx];
-  const color = p.human ? '#a3211e' : LV_COLOR[p.level];
-  const title = p.human ? 'Você' : `${LEVELS[p.level].label} — ${p.motto}`;
-  return `<div class="b-p ${p.human ? 'you' : ''} ${cls}" title="${esc(title)}"><span class="dot" style="background:${color}"></span><span class="nm">${esc(p.name)}</span><span class="sc">${score ?? ''}</span></div>`;
+  const ch = p.charId ? charById(p.charId) : null;
+  const title = p.human ? 'Você' : `${tierLabel(p.level)} — ${p.motto}`;
+  const pic = p.human ? avatarHtml(null, 'sm') : ch ? avatarHtml(ch, 'sm') : `<span class="dot" style="background:${LV_COLOR[p.level]}"></span>`;
+  return `<div class="b-p ${p.human ? 'you' : ''} ${cls}" title="${esc(title)}">${pic}<span class="nm">${esc(p.short || p.name)}</span><span class="sc">${score ?? ''}</span></div>`;
 }
 
 function showBracket(message) {
@@ -146,7 +159,7 @@ function showBracket(message) {
   } else if (hm) {
     const opp = t.players[hm.a === 0 || t.players[hm.a].human ? hm.b : hm.a];
     const side = t.players[hm.a].human ? 0 : 1;
-    if (!message) msg.innerHTML = `Seu adversário: <b>${esc(opp.name)}</b> <span class="badge lv-${opp.level}">${LEVELS[opp.level].label}</span> — <i>“${esc(opp.motto)}”</i>`;
+    if (!message) msg.innerHTML = `Seu adversário: <b>${esc(opp.name)}</b> <span class="badge lv-${tierOf(opp.level)}">${tierLabel(opp.level)}</span> — <i>${esc(opp.motto)}</i>`;
     const label = hm.games.length ? `Continuar série (${hm.wins[side]} x ${hm.wins[1 - side]})` : 'Jogar';
     const pb = h('button', 'btn primary big', label);
     pb.onclick = () => (SAVE.game && SAVE.game.mode === 'tournament' ? resumeGame(SAVE.game) : startTournamentGame());
@@ -181,13 +194,14 @@ function startTournamentGame() {
   const starterSide = T.nextStarterSide(m);
   startGame({
     mode: 'tournament',
-    levels: [null, opp.level],
+    levels: [null, T.profileOf(opp)],
+    charId: opp.charId,
     names: [t.players[humanSide === 0 ? m.a : m.b].name, opp.name],
     starter: starterSide === humanSide ? HUMAN : AI,
   });
 }
 
-function afterTournamentGame(winner, turns) {
+function afterTournamentGame(winner, turns, quote = '') {
   const t = SAVE.t;
   const m = T.humanMatch(t);
   const humanSide = t.players[m.a].human ? 0 : 1;
@@ -200,6 +214,7 @@ function afterTournamentGame(winner, turns) {
   if (m.winner == null) {
     showModal(`
       <h2 class="big-title">${winner === HUMAN ? 'Vitória!' : 'Derrota'}</h2>
+      ${quote}
       <p class="score-line">Você ${my} x ${their} ${esc(opp.name)}</p>
       <p>Série melhor de ${t.bestOf}: quem fizer ${T.winsNeeded(t)} vitória(s) avança.</p>
       <div class="row center"><button class="btn ghost" id="m-br">Ver chave</button><button class="btn primary" id="m-next">Próxima partida</button></div>`);
@@ -210,6 +225,7 @@ function afterTournamentGame(winner, turns) {
   const won = m.winner !== null && t.players[m.winner].human;
   const round = T.ROUND_NAMES[t.round];
   showModal(`<h2 class="big-title">${won ? (t.round === 2 ? 'Campeão!' : 'Você avançou!') : 'Eliminado'}</h2>
+    ${quote}
     <p class="score-line">Você ${my} x ${their} ${esc(opp.name)}</p>
     <p>Simulando os outros duelos da ${round.toLowerCase()}…</p>`);
   setTimeout(() => {
@@ -234,14 +250,57 @@ let newIds = new Set();
 let lastDefended = null;
 let runToken = 0;
 
-function startGame({ mode, levels, names, starter }) {
+async function startGame({ mode, levels, names, starter, charId }) {
   const state = E.newGame({ names, starter });
-  G = { mode, levels, names, state, log: [] };
+  G = { mode, levels, names, state, log: [], charId: charId || null };
   const initial = state.initialEvents;
   delete state.initialEvents;
   enterGame();
+  const ch = oppChar();
+  if (ch) await showVersus(ch, starter);
   logLine(`Partida começou. ${starter === HUMAN ? 'Você começa' : esc(names[AI]) + ' começa'}.`, 'big');
+  say('start', true);
   run(initial);
+}
+
+const oppChar = () => (G && G.charId ? charById(G.charId) : null);
+
+function showVersus(ch, starter) {
+  return new Promise((resolve) => {
+    const line = lineFor(ch, 'intro');
+    const extra = G.mode === 'tournament' ? `<div class="vs-round">${esc(seriesText())}</div>` : '';
+    const pic = ch.bust ? `<img class="vs-bust" src="${ch.bust}" alt="">` : avatarHtml(ch, 'huge');
+    showModal(`<div class="versus">
+      ${extra}
+      <div class="vs-pic" style="--c:${ch.color}">${pic}</div>
+      <h2 class="vs-name">${esc(ch.name)}</h2>
+      <div class="vs-title">${esc(ch.title)}</div>
+      <div class="tags center"><span class="badge lv-${tierOf(ch.ai)}">${tierLabel(ch.ai)}</span> <span class="badge style">${esc(ch.styleLabel)}</span></div>
+      ${line ? `<blockquote class="vs-quote">“${esc(line)}”</blockquote>` : ''}
+      <p class="vs-blurb">${esc(ch.blurb)}</p>
+      <p class="vs-start">${starter === HUMAN ? 'Você começa.' : esc(ch.short) + ' começa.'}</p>
+      <div class="row center"><button class="btn primary big" id="vs-go">Jogar</button></div>
+    </div>`);
+    $('#vs-go').onclick = () => { hideModal(); resolve(); };
+  });
+}
+
+// Fala do personagem: balão no topo + histórico
+let speechTimer;
+function say(situation, force = false) {
+  const ch = oppChar();
+  if (!ch) return;
+  if (!force && Math.random() > 0.7) return;
+  const line = lineFor(ch, situation);
+  if (!line) return;
+  const b = $('#speech');
+  b.innerHTML = `<b>${esc(ch.short)}:</b> ${esc(line)}`;
+  b.classList.remove('show');
+  void b.offsetWidth;
+  b.classList.add('show');
+  clearTimeout(speechTimer);
+  speechTimer = setTimeout(() => b.classList.remove('show'), Math.max(2600, 3400 * speed));
+  logLine(`<i>${esc(ch.short)}: “${esc(line)}”</i>`, 'say');
 }
 
 function resumeGame(g) {
@@ -256,8 +315,13 @@ function enterGame() {
   buildBoard();
   const lv = G.levels[AI];
   const crest = $('#opp-crest');
-  crest.textContent = G.names[AI].replace(/^(O|A|Dona|Capitão|Corsária|Baronesa|Mestre|Marujo|IA)\s+/i, '').charAt(0).toUpperCase();
-  crest.style.background = LV_COLOR[lv] || '#1d7d7a';
+  const ch = oppChar();
+  if (ch && ch.avatar) { crest.innerHTML = `<img src="${ch.avatar}" alt="">`; crest.style.background = ch.color; }
+  else {
+    crest.textContent = ch ? initials(ch) : G.names[AI].replace(/^(O|A|Dona|Capitão|Corsária|Baronesa|Mestre|Marujo|IA)\s+/i, '').charAt(0).toUpperCase();
+    crest.style.background = ch ? ch.color : LV_COLOR[tierOf(lv)] || '#1d7d7a';
+  }
+  $('#speech').classList.remove('show');
   $('#opp-name').textContent = G.names[AI];
   $('#hud-series').innerHTML = seriesText();
   $('#log-list').innerHTML = '';
@@ -399,6 +463,7 @@ async function play(events) {
       case 'bonusStart':
         logLine(`${me ? 'Você tem' : esc(G.names[AI]) + ' tem'} <b>2 ações</b> neste turno!`, 'big' + (me ? ' me' : ''));
         toast(me ? 'Você tem 2 ações neste turno!' : `${G.names[AI]} tem 2 ações neste turno!`, me ? '' : 'red');
+        if (!me) say('bonus');
         break;
       case 'draw':
         if (me) { newIds.add(ev.card.id); logLine(`Você comprou ${E.cardName(ev.card)}.`, 'me'); }
@@ -434,6 +499,7 @@ async function play(events) {
         logLine(`🌊 <b>Maré!</b> ${me ? 'Você' : esc(G.names[AI])} ${ev.source === 'draw' ? 'comprou' : 'usou'} uma Maré.`, 'big');
         render();
         await showMareBanner(ev);
+        say('mare');
         break;
       case 'mareSwap': {
         const [mine, theirs] = ev.gave; // mine = carta que o humano deu; theirs = a que a IA deu
@@ -447,10 +513,12 @@ async function play(events) {
       case 'combat':
         logCombat(ev);
         await showCombat(ev);
+        if (ev.p === AI) say(ev.result === 'hit' || ev.result === 'pierce' ? (ev.fell ? 'fell' : 'hit') : 'blocked', ev.fell);
+        else say(ev.result === 'hit' || ev.result === 'pierce' ? (ev.fell ? 'lost' : 'hurt') : 'defended', ev.fell || ev.result === 'repel');
         break;
       case 'steal':
         if (ev.to === HUMAN) { newIds.add(ev.card.id); logLine(`Você pegou ${E.cardName(ev.card)} da mão de ${esc(G.names[AI])}.`, 'me big'); toast(`Você pegou ${E.cardName(ev.card)}!`, 'sea'); }
-        else { logLine(`${esc(G.names[AI])} pegou ${E.cardName(ev.card)} da sua mão.`, 'big'); toast(`${G.names[AI]} pegou ${E.cardName(ev.card)} da sua mão!`, 'red'); }
+        else { logLine(`${esc(G.names[AI])} pegou ${E.cardName(ev.card)} da sua mão.`, 'big'); toast(`${G.names[AI]} pegou ${E.cardName(ev.card)} da sua mão!`, 'red'); say('steal', true); }
         render();
         await wait(600);
         break;
@@ -646,7 +714,7 @@ function render() {
   const lv = G.levels[AI];
   const tag = G.mode === 'online'
     ? `<span class="badge lv-online"><span class="net ${G.oppOnline ? '' : 'off'}"></span>${G.oppOnline ? 'online' : 'desconectado'}</span>`
-    : `<span class="badge lv-${lv}">${LEVELS[lv].label}</span>`;
+    : `<span class="badge lv-${tierOf(lv)}">${tierLabel(lv)}</span>${oppChar() ? ` <span class="badge style">${esc(oppChar().styleLabel)}</span>` : ''}`;
   $('#opp-sub').innerHTML = `${tag} ${op.bonus ? ' · <b>2 ações no próximo turno</b>' : ''}`;
   $('#hud-series').innerHTML = seriesText();
   const oh = $('#opp-hand');
@@ -864,6 +932,15 @@ function askSteal(n) {
   });
 }
 
+// Fala de fim de partida, com retrato
+function endQuote(winner) {
+  const ch = oppChar();
+  if (!ch) return '';
+  const line = lineFor(ch, winner === AI ? 'win' : 'lose');
+  if (!line) return '';
+  return `<div class="end-quote">${avatarHtml(ch, 'big')}<blockquote>“${esc(line)}”<cite>${esc(ch.short)}</cite></blockquote></div>`;
+}
+
 function finishGame() {
   const s = G.state;
   if (G.mode === 'online') return onlineFinish();
@@ -871,21 +948,24 @@ function finishGame() {
   const won = s.winner === HUMAN;
   const turns = s.turn;
   if (G.mode === 'tournament') {
-    setTimeout(() => afterTournamentGame(s.winner, turns), 700);
+    const quote = endQuote(s.winner);
+    setTimeout(() => afterTournamentGame(s.winner, turns, quote), 700);
     return;
   }
   SAVE.game = null;
   SAVE.stats = SAVE.stats || { w: 0, l: 0 };
   SAVE.stats[won ? 'w' : 'l']++;
   persist();
-  const level = G.levels[AI];
+  const again = G.charId || 'ynana';
+  const quote = endQuote(s.winner);
   setTimeout(() => {
     showModal(`<h2 class="big-title">${won ? 'Vitória!' : 'Derrota'}</h2>
+      ${quote}
       <p>${won ? `Você derrubou as três bases de ${esc(G.names[AI])}.` : `${esc(G.names[AI])} derrubou as suas três bases.`}${s.endReason === 'limit' ? ' (limite de turnos atingido)' : ''}</p>
       <p>Seu histórico em partidas rápidas: ${SAVE.stats.w} vitória(s), ${SAVE.stats.l} derrota(s).</p>
       <div class="row center"><button class="btn ghost" id="m-menu">Menu</button><button class="btn primary" id="m-again">Jogar de novo</button></div>`);
     $('#m-menu').onclick = () => { hideModal(); go('menu'); };
-    $('#m-again').onclick = () => { hideModal(); startQuick(level); };
+    $('#m-again').onclick = () => { hideModal(); startQuick(again); };
   }, 700);
 }
 

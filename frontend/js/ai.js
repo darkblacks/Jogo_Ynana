@@ -9,6 +9,35 @@ export const LEVELS = {
   lendario: { label: 'Lendário', randomChance: 0, noise: 0.1, smartPrior: true, smartGive: true, search: 48 },
 };
 
+// Perfil de IA: uma chave de LEVELS ('medio') ou um objeto { base: 'dificil', search, noise, style }.
+// style (todos opcionais, 1 = neutro):
+//   atk    gosto por atacar          def    gosto por defender
+//   risk   coragem de atacar base defendida (sem saber o escudo)
+//   tower  uso da Torre (guardar/pegar)      mare   gosto por usar a Maré
+//   thief  preferência por derrubar a Torre (para roubar carta)
+export function resolveProfile(x) {
+  if (!x) return LEVELS.medio;
+  if (typeof x === 'string') return LEVELS[x] || LEVELS.medio;
+  return { ...(LEVELS[x.base] || LEVELS.medio), ...x };
+}
+
+function styled(score, a, view, st) {
+  if (!st) return score;
+  switch (a.type) {
+    case 'attack': {
+      let s2 = score;
+      const slot = view.opp.bases[a.base];
+      if (slot.def && !slot.def.card) s2 += ((st.risk ?? 1) - 1) * 1.6;
+      if (a.base === 'torre') s2 += ((st.thief ?? 1) - 1) * 2;
+      return s2 > 0 ? s2 * (st.atk ?? 1) : s2;
+    }
+    case 'defend': return score > 0 ? score * (st.def ?? 1) : score;
+    case 'store': case 'retrieve': return score + ((st.tower ?? 1) - 1) * 1.2;
+    case 'mare': return score + ((st.mare ?? 1) - 1) * 1.6;
+  }
+  return score;
+}
+
 const up = (bases, b) => bases[b].hp > 0;
 const standing = (bases) => BASES.filter((b) => up(bases, b)).length;
 
@@ -124,7 +153,7 @@ function scoreRetrieve(view) {
 }
 
 export function chooseAction(view, legal, levelKey, rng = Math.random) {
-  const level = LEVELS[levelKey] || LEVELS.medio;
+  const level = resolveProfile(levelKey);
   const nonPass = legal.filter((a) => a.type !== 'pass');
   if (!nonPass.length) return legal[0];
   const byId = Object.fromEntries(view.hand.map((c) => [c.id, c]));
@@ -141,6 +170,7 @@ export function chooseAction(view, legal, levelKey, rng = Math.random) {
       case 'retrieve': s = scoreRetrieve(view); break;
       default: s = -50;
     }
+    s = styled(s, a, view, level.style);
     s += (rng() - 0.5) * 2 * level.noise;
     return { a, s };
   });
@@ -159,7 +189,7 @@ export function chooseAction(view, legal, levelKey, rng = Math.random) {
 }
 
 export function chooseMareGive(view, levelKey, rng = Math.random) {
-  const level = LEVELS[levelKey] || LEVELS.medio;
+  const level = resolveProfile(levelKey);
   const hand = view.hand;
   if (!level.smartGive || rng() < level.randomChance) return hand[Math.floor(rng() * hand.length)].id;
   return hand.slice().sort((a, b) => cardWorth(a) - cardWorth(b))[0].id;
@@ -216,12 +246,12 @@ function rollout(c, rng, maxSteps = 600) {
   return c.winner;
 }
 
-export function chooseActionSearch(s, p, rng = Math.random, rollouts = 24) {
+export function chooseActionSearch(s, p, rng = Math.random, rollouts = 24, style = null) {
   const legal = _legal(s);
   if (legal.length === 1) return legal[0];
   const view = _view(s, p);
-  // filtra ações claramente ruins para economizar tempo
-  const prelim = legal.map((a) => ({ a, h: heuristicScore(view, a) })).sort((x, y) => y.h - x.h);
+  // filtra ações claramente ruins para economizar tempo (o estilo pesa na escolha dos candidatos)
+  const prelim = legal.map((a) => ({ a, h: styled(heuristicScore(view, a), a, view, style) })).sort((x, y) => y.h - x.h);
   if (prelim[0].h >= 900) return prelim[0].a; // vitória imediata
   const cands = prelim.slice(0, 7);
   let best = null;
@@ -232,7 +262,8 @@ export function chooseActionSearch(s, p, rng = Math.random, rollouts = 24) {
       _act(c, cand.a);
       if (rollout(c, rng) === p) wins++;
     }
-    const score = wins / rollouts + cand.h * 0.002; // desempate pela heurística
+    // desempate pela heurística; com estilo, a personalidade pesa um pouco mais
+    const score = wins / rollouts + cand.h * (style ? 0.006 : 0.002);
     if (!best || score > best.score) best = { a: cand.a, score };
   }
   return best.a;
@@ -253,7 +284,7 @@ function heuristicScore(view, a) {
 
 // Ponto de entrada único: decide a ação do jogador p no estado s.
 export function decideAction(s, p, levelKey, rng = Math.random) {
-  const level = LEVELS[levelKey] || LEVELS.medio;
-  if (level.search) return chooseActionSearch(s, p, rng, level.search);
+  const level = resolveProfile(levelKey);
+  if (level.search) return chooseActionSearch(s, p, rng, level.search, level.style);
   return chooseAction(_view(s, p), _legal(s), levelKey, rng);
 }

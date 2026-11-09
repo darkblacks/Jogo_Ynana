@@ -61,16 +61,24 @@ Testes (simula centenas de partidas IA x IA): `npm test` na raiz.
 - **Partida rápida:** um jogo contra a IA no nível escolhido. Funciona sem backend.
 - **Jogar com um amigo:** cria uma sala e gera um link. Placar, revanche e reconexão automática.
 
-### Níveis da IA
+### Personagens
 
-| Nível | Como joga |
-|---|---|
-| Fácil | Heurística com muitos erros aleatórios |
-| Médio | Defende bases valiosas, ataca bases abertas |
-| Difícil | Monte Carlo: simula 16 partidas por jogada possível |
-| Lendário | Monte Carlo com 48 simulações por jogada |
+Os adversários são personagens de *Os Contos de Ynana*, cada um com retrato, força, estilo de jogo e falas próprias (em `frontend/js/characters.js`):
+
+| Personagem | Força | Estilo |
+|---|---|---|
+| Ynana Merx | Lendário (chefe final) | Estrategista |
+| Rufus Albarata | Difícil (semifinal) | Paciente, defende muito |
+| Hela Falcobane | Difícil | Impulsiva, ataca mesmo base defendida |
+| Al-Mosafar | Médio | Calculista, usa Torre e Maré |
+| Ibrahim | Médio | Ladino, mira a Torre para roubar cartas |
+| Tito, Gaivota, Brás | Fácil/Médio | provisórios, até chegarem os outros personagens |
+
+No torneio, Ynana e Rufus sempre entram: o Rufus fica na metade do jogador (adversário da semifinal) e a Ynana na outra metade (adversária da final). Os outros cinco são sorteados.
 
 A IA não trapaceia: antes de cada simulação, as cartas escondidas do adversário são embaralhadas e redistribuídas.
+
+Para adicionar um personagem: coloque o rosto em `frontend/assets/chars/<id>.webp` (256x256) e o busto em `<id>-busto.webp` (640x640), e acrescente um bloco em `characters.js`.
 
 ## Decisões de regra
 
