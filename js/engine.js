@@ -223,7 +223,7 @@ export function act(s, a) {
     case 'defend': {
       const c = takeFromHand(me, a.cardId);
       me.bases[a.base].def = { card: c, life: DEFENSE_LIFE };
-      ev.push({ t: 'defend', p: cur, base: a.base, card: c });
+      ev.push({ t: 'defend', p: cur, base: a.base, card: c, visible: defenseVisible(me, a.base) });
       break;
     }
     case 'store': {

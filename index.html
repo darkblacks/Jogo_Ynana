@@ -24,6 +24,7 @@
         <button class="btn big" id="btn-continue" hidden>Continuar torneio</button>
         <button class="btn big primary" data-go="tsetup">Torneio · 8 jogadores</button>
         <button class="btn big" data-go="quick">Partida rápida</button>
+        <button class="btn big sea" id="btn-online">Jogar com um amigo</button>
         <button class="btn big ghost" data-go="rules">Como jogar</button>
       </div>
       <div class="menu-cards" aria-hidden="true">
@@ -74,6 +75,34 @@
       <p>Escolha a força do adversário.</p>
       <div class="level-grid" id="level-grid"></div>
       <div class="row"><button class="btn ghost" data-go="menu">Voltar</button></div>
+    </div>
+  </section>
+
+  <!-- ONLINE -->
+  <section id="scr-online" class="screen">
+    <div class="parchment narrow">
+      <h2>Jogar com um amigo</h2>
+      <div id="on-start">
+        <p>Crie uma sala e mande o link para o seu amigo, ou entre na sala dele com o código.</p>
+        <label class="field">Seu nome
+          <input id="on-name" maxlength="18" placeholder="Capitão(ã)" autocomplete="nickname">
+        </label>
+        <div class="row center"><button class="btn primary big" id="on-create">Criar sala</button></div>
+        <div class="or">ou</div>
+        <label class="field">Código da sala
+          <input id="on-code" maxlength="5" placeholder="ABCDE" autocapitalize="characters" style="text-transform:uppercase;letter-spacing:.2em">
+        </label>
+        <div class="row center"><button class="btn sea" id="on-join">Entrar na sala</button></div>
+      </div>
+      <div id="on-wait" hidden>
+        <p>Sala criada! Mande este link para o seu amigo:</p>
+        <div class="share-box"><input id="on-link" readonly><button class="btn small" id="on-copy">Copiar</button></div>
+        <p class="room-code">Código: <b id="on-codeshow"></b></p>
+        <div class="row center"><button class="btn sea small" id="on-share" hidden>Compartilhar…</button></div>
+        <p class="waiting">⏳ Aguardando o amigo entrar…</p>
+      </div>
+      <p class="on-error" id="on-error"></p>
+      <div class="row"><button class="btn ghost" id="on-back">Voltar</button></div>
     </div>
   </section>
 

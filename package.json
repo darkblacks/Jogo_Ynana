@@ -3,9 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Gachaqui — jogo de cartas na web com IA e torneio de 8 jogadores",
+  "description": "Gachaqui — jogo de cartas na web com IA, torneio de 8 jogadores e modo online",
+  "engines": { "node": ">=18" },
   "scripts": {
-    "start": "npx --yes serve -l 8080 .",
+    "start": "node server/server.js",
     "test": "node tools/sim.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
   }
 }

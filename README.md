@@ -1,11 +1,12 @@
 # Gachaqui
 
-Jogo de cartas de ataque e defesa para navegador, com IA adversária e torneio eliminatório de 8 jogadores.
+Jogo de cartas de ataque e defesa para navegador, com IA adversária, torneio eliminatório de 8 jogadores e partidas online contra um amigo.
 
 ## Como jogar
 
 - **Torneio · 8 jogadores:** você e 7 capitães controlados pela IA disputam quartas, semifinal e final. Cada confronto pode ser melhor de 1, 3 ou 5. Os duelos entre IAs são simulados com as mesmas regras.
 - **Partida rápida:** um jogo avulso contra a IA, no nível que você escolher.
+- **Jogar com um amigo:** crie uma sala e mande o link (ou o código de 5 letras). Tem placar, revanche e reconexão: se alguém fechar a aba ou a internet cair, é só abrir o link de novo.
 - **Como jogar:** as regras completas estão dentro do jogo.
 
 O progresso (torneio e partida em andamento) fica salvo no navegador.
@@ -19,30 +20,34 @@ O progresso (torneio e partida em andamento) fica salvo no navegador.
 | Difícil | Monte Carlo: simula 16 partidas por jogada possível |
 | Lendário | Monte Carlo com 48 simulações por jogada |
 
+No modo online, a partida roda no servidor, e cada navegador só recebe o que o jogador veria na mesa: a mão, o baralho e as defesas escondidas do adversário nunca são enviados.
+
 A IA **não trapaceia**: ela só vê o que um jogador veria. Antes de cada simulação, as cartas escondidas do adversário (mão, baralho, defesas viradas e Torre) são embaralhadas e redistribuídas.
 
 ## Rodar localmente
 
-É um site estático, sem etapa de build. Sirva a pasta com qualquer servidor HTTP (os módulos JS não funcionam abrindo o arquivo direto com `file://`):
-
 ```bash
-python3 -m http.server 8080
-```
-
-ou
-
-```bash
+npm install
 npm start
 ```
 
-Depois abra http://localhost:8080.
+Abra http://localhost:8080. O servidor Node entrega o site e conduz as partidas online. Para testar o online sozinho, abra o link da sala em outra janela anônima.
 
-## Publicar na web
+## Publicar na web (com o modo online)
 
-Qualquer hospedagem de arquivos estáticos serve.
+O modo online precisa de um servidor Node rodando. O jeito mais simples é o **Render** (tem plano gratuito):
 
-- **GitHub Pages:** em *Settings → Pages*, escolha *Deploy from a branch*, a branch e a pasta `/ (root)`.
-- **Netlify / Vercel / Cloudflare Pages:** importe o repositório; não há comando de build e o diretório de publicação é a raiz.
+1. Crie uma conta em https://render.com e conecte o GitHub.
+2. Clique em **New → Blueprint** e escolha este repositório. O arquivo `render.yaml` já configura tudo.
+3. Depois do deploy, o jogo fica em `https://gachaqui-xxxx.onrender.com`. Crie uma sala e mande o link para o amigo.
+
+No plano gratuito do Render, o servidor "dorme" depois de 15 minutos sem uso, e o primeiro acesso depois disso leva uns 50 segundos para abrir.
+
+Outras opções que também funcionam: **Railway** e **Fly.io** (usam o `Dockerfile`), ou qualquer VPS com Node 18+ (`npm install && npm start`; a porta vem da variável `PORT`).
+
+### Só o site, sem servidor
+
+Torneio e partida rápida funcionam como site estático (GitHub Pages, Netlify etc.). Nesse caso, o botão "Jogar com um amigo" avisa que falta o servidor. Para usar o site estático com o servidor hospedado em outro lugar, coloque o endereço em `js/config.js`, por exemplo `export const SERVER_URL = 'wss://gachaqui-xxxx.onrender.com/ws';`.
 
 ## Testes
 
@@ -63,6 +68,9 @@ js/headless.js    partida IA x IA sem interface
 js/tournament.js  chave do torneio
 js/ui.js          interface, animações e salvamento
 js/rules.js       texto das regras
+js/config.js      endereço do servidor online (vazio = mesmo site)
+server/server.js  servidor HTTP + WebSocket
+server/online.js  salas e o que cada jogador pode ver
 assets/           cartas e tabuleiro (WebP otimizados)
 tools/sim.mjs     simulador de testes
 ```

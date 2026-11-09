@@ -2,6 +2,7 @@ import * as E from './engine.js';
 import { decideAction, chooseMareGive, chooseSteal, LEVELS } from './ai.js';
 import * as T from './tournament.js';
 import { RULES_HTML } from './rules.js';
+import { SERVER_URL } from './config.js';
 
 const HUMAN = 0;
 const AI = 1;
@@ -256,7 +257,7 @@ function enterGame() {
   const lv = G.levels[AI];
   const crest = $('#opp-crest');
   crest.textContent = G.names[AI].replace(/^(O|A|Dona|Capitão|Corsária|Baronesa|Mestre|Marujo|IA)\s+/i, '').charAt(0).toUpperCase();
-  crest.style.background = LV_COLOR[lv];
+  crest.style.background = LV_COLOR[lv] || '#1d7d7a';
   $('#opp-name').textContent = G.names[AI];
   $('#hud-series').innerHTML = seriesText();
   $('#log-list').innerHTML = '';
@@ -265,6 +266,7 @@ function enterGame() {
 }
 
 function seriesText() {
+  if (G.mode === 'online') return `Contra um amigo · Placar ${G.score ? G.score[0] + ' x ' + G.score[1] : '0 x 0'}`;
   if (G.mode !== 'tournament' || !SAVE.t) return 'Partida rápida';
   const t = SAVE.t;
   const m = T.humanMatch(t);
@@ -282,6 +284,17 @@ $('#btn-speed').onclick = () => {
 };
 $('#btn-log').onclick = () => $('#log').classList.toggle('open');
 $('#btn-quit').onclick = () => {
+  if (G.mode === 'online') {
+    showModal(`<h2>Partida online</h2><p>Sala <b>${esc(G.code)}</b>. Se você sair, pode voltar depois pelo mesmo link enquanto a sala existir.</p>
+      <div class="row center">
+        <button class="btn ghost" id="q-rules">Regras</button>
+        <button class="btn ghost" id="q-menu">Sair da sala</button>
+        <button class="btn primary" id="q-back">Continuar</button></div>`);
+    $('#q-back').onclick = hideModal;
+    $('#q-rules').onclick = () => { hideModal(); go('rules'); };
+    $('#q-menu').onclick = () => { hideModal(); leaveOnline(); go('menu'); };
+    return;
+  }
   showModal(`<h2>Pausa</h2><p>A partida fica salva neste navegador.</p>
     <div class="row center">
       <button class="btn ghost" id="q-rules">Regras</button>
@@ -355,16 +368,20 @@ async function run(initialEvents) {
   }
 }
 
+let promptCancel = null; // cancela a escolha aberta (online: chegou estado mais novo)
 function askAction() {
   awaiting = 'action';
   render();
-  return new Promise((r) => { resolver = r; });
+  return new Promise((r) => {
+    resolver = r;
+    promptCancel = () => { awaiting = null; selected = null; resolver = null; r(null); };
+  });
 }
 function submit(a) {
   if (awaiting !== 'action' || !E.isLegal(G.state, a)) return;
   awaiting = null;
   selected = null;
-  const r = resolver; resolver = null;
+  const r = resolver; resolver = null; promptCancel = null;
   r(a);
 }
 
@@ -627,7 +644,11 @@ function render() {
 
   // HUD do adversário
   const lv = G.levels[AI];
-  $('#opp-sub').innerHTML = `<span class="badge lv-${lv}">${LEVELS[lv].label}</span> ${op.bonus ? ' · <b>2 ações no próximo turno</b>' : ''}`;
+  const tag = G.mode === 'online'
+    ? `<span class="badge lv-online"><span class="net ${G.oppOnline ? '' : 'off'}"></span>${G.oppOnline ? 'online' : 'desconectado'}</span>`
+    : `<span class="badge lv-${lv}">${LEVELS[lv].label}</span>`;
+  $('#opp-sub').innerHTML = `${tag} ${op.bonus ? ' · <b>2 ações no próximo turno</b>' : ''}`;
+  $('#hud-series').innerHTML = seriesText();
   const oh = $('#opp-hand');
   oh.innerHTML = '';
   for (let i = 0; i < Math.min(op.hand.length, 12); i++) oh.append(h('span', 'mini-back'));
@@ -674,7 +695,8 @@ function renderStatus(selCard) {
   const btn = (label, cls, fn) => { const b = h('button', 'btn small ' + cls, label); b.onclick = fn; acts.append(b); return b; };
   if (s.phase === 'over') { txt.innerHTML = s.winner === HUMAN ? '<b>Você venceu!</b>' : `<b>${esc(G.names[AI])}</b> venceu.`; return; }
   if (awaiting !== 'action') {
-    txt.innerHTML = s.current === AI ? `Vez de <b>${esc(G.names[AI])}</b>…` : 'Aguarde…';
+    if (s.phase === 'mare' && G.mode === 'online') txt.innerHTML = `Aguardando <b>${esc(G.names[AI])}</b> escolher a carta da Maré…`;
+    else txt.innerHTML = s.current === AI ? `Vez de <b>${esc(G.names[AI])}</b>…` : 'Aguarde…';
     return;
   }
   const left = s.actionsLeft > 1 ? ` <b>(${s.actionsLeft} ações restantes)</b>` : '';
@@ -810,9 +832,10 @@ function askMare() {
       const b = h('button', 'hcard');
       b.style.backgroundImage = `url(${img(c)})`;
       b.title = E.cardName(c);
-      b.onclick = () => { hideModal(); resolve(c.id); };
+      b.onclick = () => { promptCancel = null; hideModal(); resolve(c.id); };
       pick.append(b);
     }
+    promptCancel = () => { hideModal(); resolve(null); };
   });
 }
 
@@ -834,14 +857,16 @@ function askSteal(n) {
     for (let i = 0; i < n; i++) {
       const b = h('button', 'card-back');
       b.setAttribute('aria-label', `Carta ${i + 1}`);
-      b.onclick = () => { hideModal(); resolve(i); };
+      b.onclick = () => { promptCancel = null; hideModal(); resolve(i); };
       pick.append(b);
     }
+    promptCancel = () => { hideModal(); resolve(null); };
   });
 }
 
 function finishGame() {
   const s = G.state;
+  if (G.mode === 'online') return onlineFinish();
   render();
   const won = s.winner === HUMAN;
   const turns = s.turn;
@@ -865,5 +890,222 @@ function finishGame() {
 }
 
 addEventListener('resize', () => { if (G && document.querySelector('#scr-game.active')) renderHand(); });
+
+// ---------------- modo online (contra um amigo) ----------------
+const ROOM_KEY = 'gachaqui.room.v1';
+const net = { ws: null, queue: Promise.resolve(), v: -1, retry: 0, wantOpen: false, room: null };
+const loadRoom = () => { try { return JSON.parse(localStorage.getItem(ROOM_KEY)); } catch { return null; } };
+const saveRoom = (r) => { try { r ? localStorage.setItem(ROOM_KEY, JSON.stringify(r)) : localStorage.removeItem(ROOM_KEY); } catch {} };
+
+function serverUrl() {
+  if (SERVER_URL) return SERVER_URL;
+  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+}
+function roomLink(code) {
+  return `${location.origin}${location.pathname}?sala=${code}`;
+}
+
+function onlineError(msg) { $('#on-error').textContent = msg || ''; }
+
+function openOnlineScreen(code) {
+  go('online');
+  $('#on-name').value = SAVE.playerName || '';
+  $('#on-code').value = code || '';
+  $('#on-start').hidden = false;
+  $('#on-wait').hidden = true;
+  onlineError('');
+  if (location.protocol === 'file:') onlineError('Abra o jogo pelo servidor (npm start) para jogar online.');
+}
+$('#btn-online').onclick = () => {
+  const r = loadRoom();
+  if (r) return resumeOnline(r);
+  openOnlineScreen();
+};
+$('#on-back').onclick = () => { leaveOnline(); go('menu'); };
+
+function connect() {
+  return new Promise((resolve, reject) => {
+    if (net.ws && net.ws.readyState === 1) return resolve(net.ws);
+    let ws;
+    try { ws = new WebSocket(serverUrl()); } catch (e) { reject(e); return; }
+    let opened = false;
+    ws.onopen = () => { opened = true; net.retry = 0; resolve(ws); };
+    ws.onerror = () => { if (!opened) reject(new Error('sem servidor')); };
+    ws.onclose = () => {
+      if (net.ws === ws) net.ws = null;
+      if (G && G.mode === 'online') { G.connected = false; G.oppOnline = false; render(); }
+      if (net.wantOpen && net.room) {
+        const delay = Math.min(10000, 800 * 2 ** net.retry++);
+        if (net.retry === 2) toast('Conexão perdida. Tentando reconectar…', 'red');
+        setTimeout(() => { if (net.wantOpen) reconnect(); }, delay);
+      }
+    };
+    ws.onmessage = (e) => {
+      let msg;
+      try { msg = JSON.parse(e.data); } catch { return; }
+      onMessage(msg);
+    };
+    net.ws = ws;
+  });
+}
+const NO_SERVER = 'Não consegui falar com o servidor do jogo. O modo online precisa do servidor Node rodando (veja o README).';
+const sendNet = (m) => { if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(m)); else toast('Sem conexão — tentando de novo…', 'red'); };
+
+async function reconnect() {
+  try {
+    await connect();
+    sendNet({ t: 'rejoin', code: net.room.code, token: net.room.token, v: net.v });
+  } catch { /* onclose agenda nova tentativa */ }
+}
+
+$('#on-create').onclick = async () => {
+  const name = $('#on-name').value.trim() || 'Capitão(ã)';
+  SAVE.playerName = name; persist();
+  onlineError('');
+  try { await connect(); } catch { onlineError(NO_SERVER); return; }
+  net.wantOpen = true;
+  sendNet({ t: 'create', name });
+};
+$('#on-join').onclick = async () => {
+  const code = $('#on-code').value.trim().toUpperCase();
+  const name = $('#on-name').value.trim() || 'Capitão(ã)';
+  if (code.length < 4) { onlineError('Digite o código da sala.'); return; }
+  SAVE.playerName = name; persist();
+  onlineError('');
+  try { await connect(); } catch { onlineError(NO_SERVER); return; }
+  net.wantOpen = true;
+  sendNet({ t: 'join', code, name });
+};
+$('#on-copy').onclick = async () => {
+  const inp = $('#on-link');
+  try { await navigator.clipboard.writeText(inp.value); toast('Link copiado!', 'sea'); }
+  catch { inp.select(); document.execCommand('copy'); toast('Link copiado!', 'sea'); }
+};
+$('#on-share').onclick = () => navigator.share({ title: 'Gachaqui', text: 'Bora jogar Gachaqui comigo?', url: $('#on-link').value }).catch(() => {});
+
+async function resumeOnline(r) {
+  net.room = r; net.v = -1; net.wantOpen = true;
+  try { await connect(); } catch { openOnlineScreen(); onlineError(NO_SERVER); return; }
+  sendNet({ t: 'rejoin', code: r.code, token: r.token, v: -1 });
+}
+
+function leaveOnline() {
+  net.wantOpen = false;
+  if (net.ws) { sendNet({ t: 'leave' }); net.ws.close(); }
+  net.ws = null; net.room = null; net.v = -1;
+  saveRoom(null);
+  if (G && G.mode === 'online') G = null;
+}
+
+function showWaitingRoom(code) {
+  go('online');
+  $('#on-start').hidden = true;
+  $('#on-wait').hidden = false;
+  $('#on-link').value = roomLink(code);
+  $('#on-codeshow').textContent = code;
+  $('#on-share').hidden = !navigator.share;
+}
+
+function onMessage(msg) {
+  switch (msg.t) {
+    case 'lobby':
+      net.room = { code: msg.code, token: msg.token };
+      saveRoom(net.room);
+      showWaitingRoom(msg.code);
+      return;
+    case 'joined':
+      net.room = { code: msg.code, token: msg.token };
+      saveRoom(net.room);
+      return;
+    case 'presence':
+      if (G && G.mode === 'online') {
+        const was = G.oppOnline;
+        G.oppOnline = msg.opponentOnline;
+        if (was && !msg.opponentOnline) toast(`${G.names[AI]} desconectou. Aguardando voltar…`, 'red');
+        if (was === false && msg.opponentOnline) toast(`${G.names[AI]} voltou!`, 'sea');
+        render();
+      }
+      return;
+    case 'rematch':
+      if (G) G.rematch = msg.rematch;
+      updateRematchModal();
+      return;
+    case 'error':
+      if (document.querySelector('#scr-online.active')) onlineError(msg.msg);
+      else toast(msg.msg, 'red');
+      if (/não existe|não faz parte|não encontrada/i.test(msg.msg)) { saveRoom(null); net.room = null; net.wantOpen = false; if (!document.querySelector('#scr-online.active')) openOnlineScreen(); onlineError(msg.msg); }
+      if (msg.fatal) net.wantOpen = false;
+      return;
+    case 'update':
+      if (promptCancel) { const c = promptCancel; promptCancel = null; c(); }
+      net.queue = net.queue.then(() => handleUpdate(msg)).catch((e) => console.error(e));
+      return;
+  }
+}
+
+async function handleUpdate(msg) {
+  net.v = msg.v;
+  const isNewGame = !G || G.mode !== 'online' || G.game !== msg.game || msg.sync;
+  if (isNewGame) {
+    hideModal();
+    G = { mode: 'online', levels: [null, 'online'], names: msg.names, state: msg.state, log: G && G.mode === 'online' && G.game === msg.game ? G.log : [], game: msg.game, code: msg.code };
+    G.score = msg.score; G.oppOnline = msg.opponentOnline; G.connected = true; G.rematch = msg.rematch;
+    enterGame();
+    if (!msg.sync) logLine(`Partida ${msg.game} contra ${esc(msg.names[AI])} começou. ${msg.state.starter === HUMAN ? 'Você começa' : esc(msg.names[AI]) + ' começa'}.`, 'big');
+    else logLine('Conectado à partida.', 'big');
+  } else {
+    G.state = msg.state; G.names = msg.names; G.score = msg.score; G.oppOnline = msg.opponentOnline; G.rematch = msg.rematch;
+  }
+  awaiting = null;
+  if (msg.events.some((e) => e.t === 'turn' && e.p === HUMAN)) newIds = new Set();
+  await play(msg.events);
+  render();
+  const s = G.state;
+  if (s.phase === 'over') { onlineFinish(); return; }
+  const who = E.pendingDeciders(s);
+  if (!who.includes(HUMAN)) return;
+  if (s.phase === 'action') {
+    const a = await askAction();
+    if (a) sendNet({ t: 'action', a });
+  } else if (s.phase === 'mare') {
+    const id = await askMare();
+    if (id) sendNet({ t: 'mare', cardId: id });
+  } else if (s.phase === 'steal') {
+    const idx = await askSteal(s.players[AI].hand.length);
+    if (idx != null) sendNet({ t: 'steal', index: idx });
+  }
+}
+
+function onlineFinish() {
+  const s = G.state;
+  const won = s.winner === HUMAN;
+  setTimeout(() => {
+    showModal(`<h2 class="big-title">${won ? 'Vitória!' : 'Derrota'}</h2>
+      <p>${won ? `Você derrubou as três bases de ${esc(G.names[AI])}.` : `${esc(G.names[AI])} derrubou as suas três bases.`}</p>
+      <p class="score-line">Você ${G.score[0]} x ${G.score[1]} ${esc(G.names[AI])}</p>
+      <p id="rm-status"></p>
+      <div class="row center"><button class="btn ghost" id="m-leave">Sair da sala</button><button class="btn primary" id="m-rematch">Revanche</button></div>`);
+    $('#m-leave').onclick = () => { hideModal(); leaveOnline(); go('menu'); };
+    $('#m-rematch').onclick = () => sendNet({ t: 'rematch' });
+    updateRematchModal();
+  }, 700);
+}
+function updateRematchModal() {
+  const st = $('#rm-status');
+  if (!st || !G || !G.rematch) return;
+  const [me, them] = G.rematch;
+  st.textContent = me && !them ? `Aguardando ${G.names[AI]} aceitar a revanche…` : !me && them ? `${G.names[AI]} quer revanche!` : '';
+  const b = $('#m-rematch');
+  if (b) { b.disabled = me; b.textContent = them && !me ? 'Aceitar revanche' : 'Revanche'; }
+}
+
+// link de convite: ?sala=CODIGO
+(() => {
+  const code = new URLSearchParams(location.search).get('sala');
+  if (!code) return;
+  const saved = loadRoom();
+  if (saved && saved.code === code.toUpperCase()) resumeOnline(saved);
+  else openOnlineScreen(code.toUpperCase());
+})();
 
 refreshMenu();

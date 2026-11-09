@@ -411,3 +411,16 @@ button { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- online ---------- */
+.or { text-align: center; margin: 18px 0 0; font-style: italic; color: var(--ink-soft); }
+.share-box { display: flex; gap: 8px; }
+.share-box input { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border-radius: 8px; border: 2px solid var(--gold-2); background: #fffaf0; color: var(--ink); }
+.room-code { text-align: center; font-size: 1.1rem; }
+.room-code b { font-family: var(--display); letter-spacing: .2em; color: var(--navy); font-size: 1.4rem; }
+.waiting { text-align: center; font-style: italic; animation: breathe 1.6s infinite; }
+@keyframes breathe { 50% { opacity: .45; } }
+.on-error { color: var(--crimson); text-align: center; font-weight: 600; min-height: 1.2em; margin: 8px 0 0; }
+.net { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #5bd16a; margin-right: 4px; box-shadow: 0 0 6px #5bd16a; }
+.net.off { background: #e0573f; box-shadow: 0 0 6px #e0573f; }
+.badge.lv-online { background: var(--sea); }
