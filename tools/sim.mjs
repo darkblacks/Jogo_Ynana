@@ -1,6 +1,6 @@
 // Simula muitas partidas IA x IA para validar o motor e o equilíbrio da IA.
-import { playHeadless } from '../js/headless.js';
-import { BASES } from '../js/engine.js';
+import { playHeadless } from '../frontend/js/headless.js';
+import { BASES } from '../frontend/js/engine.js';
 
 const N = +(process.argv[2] || 400);
 const lv = (process.argv[3] || 'facil,medio,dificil').split(',');

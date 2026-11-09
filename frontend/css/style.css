@@ -424,3 +424,6 @@ button { font: inherit; }
 .net { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #5bd16a; margin-right: 4px; box-shadow: 0 0 6px #5bd16a; }
 .net.off { background: #e0573f; box-shadow: 0 0 6px #e0573f; }
 .badge.lv-online { background: var(--sea); }
+.server-status { font-size: .9rem; margin: -4px 0 8px; color: var(--ink-soft); }
+.server-status.ok { color: var(--ok); }
+.server-status.bad { color: var(--crimson); }

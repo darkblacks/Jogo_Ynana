@@ -897,9 +897,33 @@ const net = { ws: null, queue: Promise.resolve(), v: -1, retry: 0, wantOpen: fal
 const loadRoom = () => { try { return JSON.parse(localStorage.getItem(ROOM_KEY)); } catch { return null; } };
 const saveRoom = (r) => { try { r ? localStorage.setItem(ROOM_KEY, JSON.stringify(r)) : localStorage.removeItem(ROOM_KEY); } catch {} };
 
+// SERVER_URL aceita "https://servidor", "wss://servidor/ws" ou vazio (mesmo endereço do site)
+function serverBase() {
+  const raw = (SERVER_URL || '').trim().replace(/\/+$/, '');
+  if (!raw) return location.origin;
+  return raw.replace(/^ws(s?):/, 'http$1:').replace(/\/ws$/, '');
+}
 function serverUrl() {
-  if (SERVER_URL) return SERVER_URL;
-  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+  return serverBase().replace(/^http(s?):/, 'ws$1:') + '/ws';
+}
+async function checkServer() {
+  const el = $('#on-server');
+  if (!el) return;
+  el.textContent = 'Verificando servidor…';
+  el.className = 'server-status';
+  try {
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch(serverBase() + '/api/info', { signal: ctl.signal, cache: 'no-store' });
+    clearTimeout(to);
+    const info = await r.json();
+    if (!info.ok) throw new Error();
+    el.innerHTML = `<span class="net"></span>Servidor online · ${info.jogadoresOnline} conectado(s) · ${info.salas} sala(s)`;
+    el.classList.add('ok');
+  } catch {
+    el.innerHTML = '<span class="net off"></span>Servidor fora do ar ou não configurado';
+    el.classList.add('bad');
+  }
 }
 function roomLink(code) {
   return `${location.origin}${location.pathname}?sala=${code}`;
@@ -915,6 +939,7 @@ function openOnlineScreen(code) {
   $('#on-wait').hidden = true;
   onlineError('');
   if (location.protocol === 'file:') onlineError('Abra o jogo pelo servidor (npm start) para jogar online.');
+  checkServer();
 }
 $('#btn-online').onclick = () => {
   const r = loadRoom();
@@ -948,7 +973,7 @@ function connect() {
     net.ws = ws;
   });
 }
-const NO_SERVER = 'Não consegui falar com o servidor do jogo. O modo online precisa do servidor Node rodando (veja o README).';
+const NO_SERVER = 'Não consegui falar com o servidor do jogo. Se você acabou de abrir, espere alguns segundos e tente de novo. Se continuar, o servidor está fora do ar ou o endereço em js/config.js está errado.';
 const sendNet = (m) => { if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(m)); else toast('Sem conexão — tentando de novo…', 'red'); };
 
 async function reconnect() {

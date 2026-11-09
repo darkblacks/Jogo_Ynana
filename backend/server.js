@@ -1,15 +1,48 @@
-// Gachaqui — servidor: entrega o site e conduz as partidas online por WebSocket.
-//   npm install && npm start   →   http://localhost:8080
+// Gachaqui — servidor do modo online (WebSocket) + endpoints HTTP.
+// Também entrega o frontend, para quem quiser rodar tudo num lugar só.
+//   cd backend && npm install && npm start   →   http://localhost:8080
+//
+// Endpoints:
+//   GET  /health     → "ok" (para monitoramento)
+//   GET  /api/info   → { ok, nome, versao, salas, jogadoresOnline, ws }
+//   WS   /ws         → partidas online (mensagens JSON: create, join, rejoin, action, mare, steal, rematch, leave)
+//
+// Variáveis de ambiente:
+//   PORT             porta (padrão 8080)
+//   HOST             interface (padrão 0.0.0.0)
+//   ALLOWED_ORIGINS  sites que podem conectar, separados por vírgula
+//                    (padrão: https://gachaqui.netlify.app, prévias do Netlify e localhost)
 import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Lobby } from './online.js';
-import { pendingDeciders } from '../js/engine.js';
+import { pendingDeciders } from '../frontend/js/engine.js';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'frontend');
 const PORT = +process.env.PORT || 8080;
+const HOST = process.env.HOST || '0.0.0.0';
+const VERSION = '1.1.0';
+const ALLOWED = (process.env.ALLOWED_ORIGINS || 'https://gachaqui.netlify.app')
+  .split(',').map((x) => x.trim().replace(/\/$/, '')).filter(Boolean);
+
+// Quem pode usar o servidor: o site no Netlify (e as prévias dele), o próprio servidor e localhost.
+function originAllowed(origin, host) {
+  if (!origin) return true; // clientes que não são navegador
+  let u;
+  try { u = new URL(origin); } catch { return false; }
+  if (u.host === host) return true;
+  if (['localhost', '127.0.0.1'].includes(u.hostname)) return true;
+  if (ALLOWED.includes('*') || ALLOWED.includes(u.origin)) return true;
+  // prévias de deploy: https://<algo>--gachaqui.netlify.app
+  return ALLOWED.some((a) => {
+    try {
+      const au = new URL(a);
+      return au.hostname.endsWith('.netlify.app') && u.protocol === 'https:' && u.hostname.endsWith('--' + au.hostname);
+    } catch { return false; }
+  });
+}
 const PUBLIC = ['index.html', 'css', 'js', 'assets'];
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -24,7 +57,26 @@ const TYPES = {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x');
-    if (url.pathname === '/health') { res.writeHead(200).end('ok'); return; }
+    if (url.pathname === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok'); return; }
+    if (url.pathname.startsWith('/api/')) {
+      const origin = req.headers.origin;
+      const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Vary: 'Origin' };
+      if (origin && originAllowed(origin, req.headers.host)) headers['Access-Control-Allow-Origin'] = origin;
+      if (req.method === 'OPTIONS') { res.writeHead(204, { ...headers, 'Access-Control-Allow-Methods': 'GET' }).end(); return; }
+      if (url.pathname === '/api/info') {
+        res.writeHead(200, headers).end(JSON.stringify({
+          ok: true,
+          nome: 'Gachaqui',
+          versao: VERSION,
+          salas: lobby.rooms.size,
+          jogadoresOnline: wss.clients.size,
+          ws: '/ws',
+        }));
+        return;
+      }
+      res.writeHead(404, headers).end(JSON.stringify({ ok: false, erro: 'não encontrado' }));
+      return;
+    }
     let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html';
     const file = path.resolve(ROOT, rel);
     const top = path.relative(ROOT, file).split(path.sep)[0];
@@ -44,7 +96,12 @@ const server = http.createServer(async (req, res) => {
 });
 
 const lobby = new Lobby();
-const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024 });
+const wss = new WebSocketServer({
+  server,
+  path: '/ws',
+  maxPayload: 16 * 1024,
+  verifyClient: ({ origin, req }) => originAllowed(origin, req.headers.host),
+});
 
 const send = (ws, msg) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); };
 
@@ -141,4 +198,7 @@ setInterval(() => {
   lobby.sweep();
 }, 30000).unref();
 
-server.listen(PORT, () => console.log(`Gachaqui rodando em http://localhost:${PORT}`));
+server.listen(PORT, HOST, () => {
+  console.log(`Gachaqui ${VERSION} rodando em http://${HOST}:${PORT}`);
+  console.log(`Origens permitidas: ${ALLOWED.join(', ')} (+ localhost e o próprio servidor)`);
+});

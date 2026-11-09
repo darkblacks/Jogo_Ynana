@@ -6,10 +6,8 @@
   "description": "Gachaqui — jogo de cartas na web com IA, torneio de 8 jogadores e modo online",
   "engines": { "node": ">=18" },
   "scripts": {
-    "start": "node server/server.js",
+    "postinstall": "npm --prefix backend install --omit=dev",
+    "start": "node backend/server.js",
     "test": "node tools/sim.mjs"
-  },
-  "dependencies": {
-    "ws": "^8.18.0"
   }
 }

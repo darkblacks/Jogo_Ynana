@@ -1,0 +1,14 @@
+{
+  "name": "gachaqui-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor do modo online do Gachaqui (HTTP + WebSocket)",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,14 @@
+# Netlify: use "frontend" como Base directory. Não precisa de dependências.
+[build]
+  publish = "."
+  command = "node gerar-config.mjs"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "no-cache"

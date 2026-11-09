@@ -3,6 +3,9 @@ services:
     name: gachaqui
     runtime: node
     plan: free
-    buildCommand: npm install --omit=dev
-    startCommand: npm start
+    buildCommand: npm --prefix backend install --omit=dev
+    startCommand: node backend/server.js
     healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://gachaqui.netlify.app

@@ -1,7 +1,7 @@
 // Gachaqui online — salas e visão por jogador. O servidor guarda o estado verdadeiro;
 // cada jogador só recebe o que poderia ver na mesa (a mão e o baralho do outro viram cartas "escondidas").
 import { randomBytes } from 'node:crypto';
-import { newGame, act, mareGive, stealPick, pendingDeciders, BASES, defenseVisible } from '../js/engine.js';
+import { newGame, act, mareGive, stealPick, pendingDeciders, BASES, defenseVisible } from '../frontend/js/engine.js';
 
 const HIDDEN = (id) => ({ id, kind: 'hidden', v: 0 });
 
