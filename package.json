@@ -1,0 +1,11 @@
+{
+  "name": "gachaqui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Gachaqui — jogo de cartas na web com IA e torneio de 8 jogadores",
+  "scripts": {
+    "start": "npx --yes serve -l 8080 .",
+    "test": "node tools/sim.mjs"
+  }
+}

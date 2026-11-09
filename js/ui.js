@@ -1,0 +1,869 @@
+import * as E from './engine.js';
+import { decideAction, chooseMareGive, chooseSteal, LEVELS } from './ai.js';
+import * as T from './tournament.js';
+import { RULES_HTML } from './rules.js';
+
+const HUMAN = 0;
+const AI = 1;
+const SAVE_KEY = 'gachaqui.save.v1';
+
+const $ = (s, r = document) => r.querySelector(s);
+const h = (tag, cls, html) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html != null) e.innerHTML = html;
+  return e;
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const img = (c) => (c.kind === 'mare' ? 'assets/cards/mare.webp' : `assets/cards/${c.kind}${c.v}.webp`);
+const BN = E.BASE_NAMES;
+const art = (b) => (b === 'torre' ? 'a' : 'o'); // "a Torre", "o Forte", "o Porto"
+
+// ---------------- armazenamento ----------------
+const store = {
+  load() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } },
+  save(d) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(d)); } catch { /* sem armazenamento */ } },
+};
+let SAVE = store.load();
+let speed = +new URLSearchParams(location.search).get('speed') || SAVE.speed || 1;
+const persist = () => store.save(SAVE);
+
+// ---------------- navegação ----------------
+let prevScreen = 'menu';
+function go(name) {
+  const cur = document.querySelector('.screen.active');
+  if (cur && cur.id !== 'scr-rules') prevScreen = cur.id.replace('scr-', '');
+  document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === 'scr-' + name));
+  if (name === 'menu') refreshMenu();
+  if (name === 'quick') renderLevels();
+  window.scrollTo(0, 0);
+}
+document.addEventListener('click', (e) => {
+  const g = e.target.closest('[data-go]');
+  if (g) go(g.dataset.go);
+  if (e.target.closest('[data-back]')) go(prevScreen);
+  if (e.target.closest('[data-rules]')) go('rules');
+});
+$('#rules-body').innerHTML = RULES_HTML;
+
+function refreshMenu() {
+  const b = $('#btn-continue');
+  if (SAVE.game && SAVE.game.mode === 'quick') { b.hidden = false; b.textContent = 'Continuar partida'; }
+  else if (SAVE.t && SAVE.t.champion == null) { b.hidden = false; b.textContent = 'Continuar torneio'; }
+  else b.hidden = true;
+}
+$('#btn-continue').onclick = () => {
+  if (SAVE.game && SAVE.game.mode === 'quick') resumeGame(SAVE.game);
+  else if (SAVE.t) {
+    if (SAVE.game && SAVE.game.mode === 'tournament') resumeGame(SAVE.game);
+    else showBracket();
+  }
+};
+
+// ---------------- níveis / partida rápida ----------------
+const LEVEL_DESC = {
+  facil: 'Joga solto e erra bastante. Bom para aprender.',
+  medio: 'Conhece o básico: defende o que importa e ataca bases abertas.',
+  dificil: 'Simula jogadas futuras antes de decidir.',
+  lendario: 'Pensa muito mais longe. Boa sorte.',
+};
+const LV_COLOR = { facil: '#3d7a3a', medio: '#8a6a1c', dificil: '#7c1513', lendario: '#4b2a7a' };
+function renderLevels() {
+  const g = $('#level-grid');
+  g.innerHTML = '';
+  for (const k of Object.keys(LEVELS)) {
+    const b = h('button', 'level-card', `<span class="badge lv-${k}">${LEVELS[k].label}</span><strong>IA ${LEVELS[k].label}</strong><span class="d">${LEVEL_DESC[k]}</span>`);
+    b.onclick = () => startQuick(k);
+    g.append(b);
+  }
+}
+function startQuick(level) {
+  const names = [SAVE.playerName || 'Você', `IA ${LEVELS[level].label}`];
+  startGame({ mode: 'quick', levels: [null, level], names, starter: Math.random() < 0.5 ? 0 : 1 });
+}
+
+// ---------------- torneio ----------------
+$('#in-name').value = SAVE.playerName || '';
+$('#btn-tstart').onclick = () => {
+  const name = $('#in-name').value.trim() || 'Capitão(ã)';
+  const bestOf = +document.querySelector('input[name=bestof]:checked').value;
+  SAVE.playerName = name;
+  SAVE.t = T.createTournament(name, bestOf);
+  SAVE.game = null;
+  persist();
+  showBracket();
+};
+
+function playerTag(t, idx, score, cls = '') {
+  if (idx == null) return `<div class="b-p tbd"><span class="dot" style="background:#ccc"></span><span class="nm">a definir</span></div>`;
+  const p = t.players[idx];
+  const color = p.human ? '#a3211e' : LV_COLOR[p.level];
+  const title = p.human ? 'Você' : `${LEVELS[p.level].label} — ${p.motto}`;
+  return `<div class="b-p ${p.human ? 'you' : ''} ${cls}" title="${esc(title)}"><span class="dot" style="background:${color}"></span><span class="nm">${esc(p.name)}</span><span class="sc">${score ?? ''}</span></div>`;
+}
+
+function showBracket(message) {
+  const t = SAVE.t;
+  go('bracket');
+  $('#bracket-title').textContent = t.champion != null ? 'Torneio encerrado' : `Torneio — ${T.ROUND_NAMES[t.round]}`;
+  $('#bracket-format').textContent = `Melhor de ${t.bestOf}`;
+  const br = $('#bracket');
+  br.innerHTML = '';
+  const hm = T.humanMatch(t);
+  T.ROUND_NAMES.forEach((rn, r) => {
+    const col = h('div', 'b-col');
+    col.append(h('h4', '', rn));
+    const count = [4, 2, 1][r];
+    for (let i = 0; i < count; i++) {
+      const m = t.rounds[r] && t.rounds[r][i];
+      const box = h('div', 'b-match' + (m && m === hm ? ' current' : ''));
+      if (!m) box.innerHTML = playerTag(t, null) + playerTag(t, null);
+      else {
+        const started = m.games.length > 0;
+        const cls = (side) => (m.winner == null ? '' : m.winner === (side ? m.b : m.a) ? 'win' : 'lose');
+        box.innerHTML = playerTag(t, m.a, started ? m.wins[0] : '', cls(0)) + playerTag(t, m.b, started ? m.wins[1] : '', cls(1));
+      }
+      col.append(box);
+    }
+    br.append(col);
+  });
+  const champCol = h('div', 'b-col');
+  champCol.append(h('h4', '', 'Campeão'));
+  const cp = t.champion != null ? t.players[t.champion] : null;
+  champCol.append(h('div', 'champ-box', `<div class="trophy">🏆</div><div class="nm">${cp ? esc(cp.name) : '?'}</div>`));
+  br.append(champCol);
+
+  const msg = $('#bracket-msg');
+  const act = $('#bracket-actions');
+  act.innerHTML = '';
+  msg.innerHTML = message || '';
+  if (t.champion != null) {
+    if (!message) msg.innerHTML = cp.human ? '🏆 <b>Você é o(a) campeão(ã) do torneio!</b>' : `<b>${esc(cp.name)}</b> venceu o torneio.`;
+    const nb = h('button', 'btn primary', 'Novo torneio');
+    nb.onclick = () => go('tsetup');
+    act.append(nb);
+  } else if (hm) {
+    const opp = t.players[hm.a === 0 || t.players[hm.a].human ? hm.b : hm.a];
+    const side = t.players[hm.a].human ? 0 : 1;
+    if (!message) msg.innerHTML = `Seu adversário: <b>${esc(opp.name)}</b> <span class="badge lv-${opp.level}">${LEVELS[opp.level].label}</span> — <i>“${esc(opp.motto)}”</i>`;
+    const label = hm.games.length ? `Continuar série (${hm.wins[side]} x ${hm.wins[1 - side]})` : 'Jogar';
+    const pb = h('button', 'btn primary big', label);
+    pb.onclick = () => (SAVE.game && SAVE.game.mode === 'tournament' ? resumeGame(SAVE.game) : startTournamentGame());
+    act.append(pb);
+  } else {
+    if (!message) msg.innerHTML = 'Você foi eliminado(a). Acompanhe o resto do torneio.';
+    const sb = h('button', 'btn sea', t.round < 2 || !T.roundDone(t) ? 'Simular próxima rodada' : 'Ver final');
+    sb.onclick = () => simulateRoundUI();
+    act.append(sb);
+  }
+}
+
+function simulateRoundUI() {
+  const t = SAVE.t;
+  $('#bracket-msg').textContent = 'Simulando partidas…';
+  setTimeout(() => {
+    T.simulatePendingAI(t);
+    T.advance(t);
+    if (!T.humanMatch(t) && t.champion == null) {
+      // jogador eliminado: deixa a próxima rodada pronta para simular
+    }
+    persist();
+    showBracket();
+  }, 30);
+}
+
+function startTournamentGame() {
+  const t = SAVE.t;
+  const m = T.humanMatch(t);
+  const humanSide = t.players[m.a].human ? 0 : 1;
+  const opp = t.players[humanSide === 0 ? m.b : m.a];
+  const starterSide = T.nextStarterSide(m);
+  startGame({
+    mode: 'tournament',
+    levels: [null, opp.level],
+    names: [t.players[humanSide === 0 ? m.a : m.b].name, opp.name],
+    starter: starterSide === humanSide ? HUMAN : AI,
+  });
+}
+
+function afterTournamentGame(winner, turns) {
+  const t = SAVE.t;
+  const m = T.humanMatch(t);
+  const humanSide = t.players[m.a].human ? 0 : 1;
+  const opp = t.players[humanSide === 0 ? m.b : m.a];
+  const winnerSide = winner === HUMAN ? humanSide : 1 - humanSide;
+  T.recordGame(t, m, winnerSide, turns);
+  SAVE.game = null;
+  persist();
+  const my = m.wins[humanSide], their = m.wins[1 - humanSide];
+  if (m.winner == null) {
+    showModal(`
+      <h2 class="big-title">${winner === HUMAN ? 'Vitória!' : 'Derrota'}</h2>
+      <p class="score-line">Você ${my} x ${their} ${esc(opp.name)}</p>
+      <p>Série melhor de ${t.bestOf}: quem fizer ${T.winsNeeded(t)} vitória(s) avança.</p>
+      <div class="row center"><button class="btn ghost" id="m-br">Ver chave</button><button class="btn primary" id="m-next">Próxima partida</button></div>`);
+    $('#m-next').onclick = () => { hideModal(); startTournamentGame(); };
+    $('#m-br').onclick = () => { hideModal(); showBracket(); };
+    return;
+  }
+  const won = m.winner !== null && t.players[m.winner].human;
+  const round = T.ROUND_NAMES[t.round];
+  showModal(`<h2 class="big-title">${won ? (t.round === 2 ? 'Campeão!' : 'Você avançou!') : 'Eliminado'}</h2>
+    <p class="score-line">Você ${my} x ${their} ${esc(opp.name)}</p>
+    <p>Simulando os outros duelos da ${round.toLowerCase()}…</p>`);
+  setTimeout(() => {
+    T.simulatePendingAI(t);
+    T.advance(t);
+    persist();
+    hideModal();
+    let msg;
+    if (t.champion != null) msg = t.players[t.champion].human ? '🏆 <b>Você é o(a) campeão(ã) do torneio!</b>' : `<b>${esc(t.players[t.champion].name)}</b> venceu o torneio.`;
+    else if (won) msg = `Você venceu <b>${esc(opp.name)}</b> por ${my} x ${their}. Próxima fase: <b>${T.ROUND_NAMES[t.round]}</b>!`;
+    else msg = `<b>${esc(opp.name)}</b> venceu por ${their} x ${my}. Você foi eliminado(a) — acompanhe o resto do torneio.`;
+    showBracket(msg);
+  }, 60);
+}
+
+// ---------------- partida ----------------
+let G = null; // { mode, levels, names, state, log }
+let selected = null;
+let awaiting = null; // 'action' | 'mare' | 'steal' | null
+let resolver = null;
+let newIds = new Set();
+let lastDefended = null;
+let runToken = 0;
+
+function startGame({ mode, levels, names, starter }) {
+  const state = E.newGame({ names, starter });
+  G = { mode, levels, names, state, log: [] };
+  const initial = state.initialEvents;
+  delete state.initialEvents;
+  enterGame();
+  logLine(`Partida começou. ${starter === HUMAN ? 'Você começa' : esc(names[AI]) + ' começa'}.`, 'big');
+  run(initial);
+}
+
+function resumeGame(g) {
+  G = g;
+  enterGame();
+  run([]);
+}
+
+function enterGame() {
+  go('game');
+  selected = null; awaiting = null; newIds = new Set();
+  buildBoard();
+  const lv = G.levels[AI];
+  const crest = $('#opp-crest');
+  crest.textContent = G.names[AI].replace(/^(O|A|Dona|Capitão|Corsária|Baronesa|Mestre|Marujo|IA)\s+/i, '').charAt(0).toUpperCase();
+  crest.style.background = LV_COLOR[lv];
+  $('#opp-name').textContent = G.names[AI];
+  $('#hud-series').innerHTML = seriesText();
+  $('#log-list').innerHTML = '';
+  for (const l of G.log) appendLog(l);
+  $('#btn-speed').textContent = speedLabel();
+}
+
+function seriesText() {
+  if (G.mode !== 'tournament' || !SAVE.t) return 'Partida rápida';
+  const t = SAVE.t;
+  const m = T.humanMatch(t);
+  if (!m) return '';
+  const hs = t.players[m.a].human ? 0 : 1;
+  return `${T.ROUND_NAMES[t.round]} · Jogo ${m.games.length + 1} · ${m.wins[hs]} x ${m.wins[1 - hs]}`;
+}
+
+const SPEEDS = [1, 0.5, 1.7];
+const speedLabel = () => ({ 1: 'Normal', 0.5: 'Rápido', 1.7: 'Lento' })[speed] || 'Normal';
+$('#btn-speed').onclick = () => {
+  speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+  SAVE.speed = speed; persist();
+  $('#btn-speed').textContent = speedLabel();
+};
+$('#btn-log').onclick = () => $('#log').classList.toggle('open');
+$('#btn-quit').onclick = () => {
+  showModal(`<h2>Pausa</h2><p>A partida fica salva neste navegador.</p>
+    <div class="row center">
+      <button class="btn ghost" id="q-rules">Regras</button>
+      <button class="btn ghost" id="q-menu">Sair para o menu</button>
+      ${G.mode === 'tournament' ? '<button class="btn ghost" id="q-br">Ver chave</button>' : ''}
+      <button class="btn primary" id="q-back">Continuar</button></div>`);
+  $('#q-back').onclick = hideModal;
+  $('#q-rules').onclick = () => { hideModal(); go('rules'); };
+  $('#q-menu').onclick = () => { hideModal(); runToken++; go('menu'); };
+  const br = $('#q-br');
+  if (br) br.onclick = () => { hideModal(); runToken++; showBracket(); };
+};
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms * speed));
+
+function saveGame() {
+  if (G.mode === 'quick' || G.mode === 'tournament') {
+    G.log = G.log.slice(-250);
+    SAVE.game = G;
+    persist();
+  }
+}
+
+async function run(initialEvents) {
+  const token = ++runToken;
+  const alive = () => token === runToken && document.querySelector('#scr-game.active');
+  await play(initialEvents);
+  while (alive()) {
+    const s = G.state;
+    render();
+    saveGame();
+    if (s.phase === 'over') { finishGame(); return; }
+    const who = E.pendingDeciders(s);
+    if (s.phase === 'mare') {
+      for (const p of who) {
+        if (p === AI && s.phase === 'mare') await play(E.mareGive(s, AI, chooseMareGive(E.viewFor(s, AI), G.levels[AI])));
+      }
+      if (s.phase === 'mare' && E.pendingDeciders(s).includes(HUMAN)) {
+        const id = await askMare();
+        if (!alive()) return;
+        await play(E.mareGive(s, HUMAN, id));
+      }
+      continue;
+    }
+    if (s.phase === 'steal') {
+      if (s.steal.to === HUMAN) {
+        const idx = await askSteal(s.players[AI].hand.length);
+        if (!alive()) return;
+        await play(E.stealPick(s, idx));
+      } else {
+        await wait(500);
+        await play(E.stealPick(s, chooseSteal(E.viewFor(s, AI))));
+      }
+      continue;
+    }
+    if (s.phase === 'action') {
+      if (s.current === HUMAN) {
+        const a = await askAction();
+        if (!alive()) return;
+        if (a.type !== 'retrieve') newIds = new Set();
+        await play(E.act(s, a));
+      } else {
+        await wait(750);
+        if (!alive()) return;
+        // deixa a tela atualizar antes de a IA "pensar"
+        await new Promise((r) => setTimeout(r, 20));
+        const a = decideAction(s, AI, G.levels[AI]);
+        await play(E.act(s, a));
+      }
+    }
+  }
+}
+
+function askAction() {
+  awaiting = 'action';
+  render();
+  return new Promise((r) => { resolver = r; });
+}
+function submit(a) {
+  if (awaiting !== 'action' || !E.isLegal(G.state, a)) return;
+  awaiting = null;
+  selected = null;
+  const r = resolver; resolver = null;
+  r(a);
+}
+
+// ---------------- eventos -> animação + histórico ----------------
+const nameOf = (p) => (p === HUMAN ? 'Você' : G.names[AI]);
+async function play(events) {
+  for (const ev of events) {
+    const me = ev.p === HUMAN;
+    switch (ev.t) {
+      case 'turn':
+        logLine(`${me ? 'Seu turno' : 'Turno de ' + esc(G.names[AI])} (${ev.turn})`, 'turn');
+        if (!me) zone(`Vez de ${G.names[AI]}`);
+        else zone('Seu turno');
+        break;
+      case 'bonusStart':
+        logLine(`${me ? 'Você tem' : esc(G.names[AI]) + ' tem'} <b>2 ações</b> neste turno!`, 'big' + (me ? ' me' : ''));
+        toast(me ? 'Você tem 2 ações neste turno!' : `${G.names[AI]} tem 2 ações neste turno!`, me ? '' : 'red');
+        break;
+      case 'draw':
+        if (me) { newIds.add(ev.card.id); logLine(`Você comprou ${E.cardName(ev.card)}.`, 'me'); }
+        else logLine(`${esc(G.names[AI])} comprou uma carta.`);
+        break;
+      case 'deckEmpty':
+        logLine(`${me ? 'Seu baralho' : 'O baralho de ' + esc(G.names[AI])} está vazio.`);
+        break;
+      case 'expire':
+        logLine(me ? `Sua defesa n${art(ev.base)} ${BN[ev.base]} (${E.cardName(ev.card)}) completou 2 turnos e voltou ao baralho.` : `A defesa d${art(ev.base)} ${BN[ev.base]} de ${esc(G.names[AI])} expirou.`, me ? 'me' : '');
+        break;
+      case 'defend': {
+        lastDefended = { p: ev.p, base: ev.base };
+        const vis = E.defenseVisible(G.state.players[ev.p], ev.base);
+        logLine(me ? `Você defendeu ${art(ev.base)} ${BN[ev.base]} com ${E.cardName(ev.card)}.` : `${esc(G.names[AI])} pôs uma defesa atrás d${art(ev.base)} ${BN[ev.base]}${vis ? ` (visível: ${E.cardName(ev.card)})` : ''}.`, me ? 'me' : '');
+        if (!me) { render(); zone(`${G.names[AI]} defendeu ${art(ev.base)} ${BN[ev.base]}`); await wait(900); }
+        break;
+      }
+      case 'store':
+        logLine(me ? `Você guardou ${E.cardName(ev.card)} na Torre.` : `${esc(G.names[AI])} guardou uma carta na Torre.`, me ? 'me' : '');
+        if (!me) { render(); zone(`${G.names[AI]} guardou uma carta na Torre`); await wait(900); }
+        break;
+      case 'retrieve':
+        if (me) newIds.add(ev.card.id);
+        logLine(me ? `Você pegou ${E.cardName(ev.card)} de volta da Torre.` : `${esc(G.names[AI])} pegou a carta guardada na Torre.`, me ? 'me' : '');
+        if (!me) { render(); zone(`${G.names[AI]} pegou a carta da Torre`); await wait(700); }
+        break;
+      case 'pass':
+        logLine(`${nameOf(ev.p)} ${me ? 'passou' : 'passou'} (nenhuma ação possível).`);
+        if (!me) { zone(`${G.names[AI]} passou a vez`); await wait(800); }
+        break;
+      case 'mareReveal':
+        logLine(`🌊 <b>Maré!</b> ${me ? 'Você' : esc(G.names[AI])} ${ev.source === 'draw' ? 'comprou' : 'usou'} uma Maré.`, 'big');
+        render();
+        await showMareBanner(ev);
+        break;
+      case 'mareSwap': {
+        const [mine, theirs] = ev.gave; // mine = carta que o humano deu; theirs = a que a IA deu
+        if (theirs) newIds.add(theirs.id);
+        const txt = `Troca da Maré: você entregou ${mine ? E.cardName(mine) : 'nada'} e recebeu ${theirs ? E.cardName(theirs) : 'nada'}.`;
+        logLine(txt, 'me');
+        render();
+        await showSwap(mine, theirs);
+        break;
+      }
+      case 'combat':
+        logCombat(ev);
+        await showCombat(ev);
+        break;
+      case 'steal':
+        if (ev.to === HUMAN) { newIds.add(ev.card.id); logLine(`Você pegou ${E.cardName(ev.card)} da mão de ${esc(G.names[AI])}.`, 'me big'); toast(`Você pegou ${E.cardName(ev.card)}!`, 'sea'); }
+        else { logLine(`${esc(G.names[AI])} pegou ${E.cardName(ev.card)} da sua mão.`, 'big'); toast(`${G.names[AI]} pegou ${E.cardName(ev.card)} da sua mão!`, 'red'); }
+        render();
+        await wait(600);
+        break;
+      case 'win':
+        logLine(ev.p === HUMAN ? '🏆 Você venceu!' : `${esc(G.names[AI])} venceu.`, 'big');
+        break;
+    }
+  }
+  render();
+}
+
+function logCombat(ev) {
+  const me = ev.p === HUMAN;
+  const who = me ? 'Você' : esc(G.names[AI]);
+  const tgt = `${art(ev.base)} ${BN[ev.base]}${me ? ' de ' + esc(G.names[AI]) : ''}`;
+  let s = `${who} atacou ${tgt} com ${E.cardName(ev.atk)}`;
+  s += ev.def ? ` contra ${E.cardName(ev.def)}: ` : ' (sem defesa): ';
+  s += { hit: 'acertou!', pierce: 'atravessou e acertou!', block: 'empate, golpe anulado.', repel: 'golpe anulado — o defensor terá 2 ações.' }[ev.result];
+  if (ev.fell) s += ` <b>${BN[ev.base]} caiu!</b>`;
+  else if (ev.damaged) s += ' O Forte ficou danificado.';
+  logLine(s, ev.fell ? 'big' : me ? 'me' : '');
+}
+
+function logLine(html, cls = '') {
+  const l = { html, cls };
+  G.log.push(l);
+  appendLog(l);
+}
+function appendLog(l) {
+  const li = h('li', l.cls, l.html);
+  const list = $('#log-list');
+  list.append(li);
+  const box = $('#log');
+  box.scrollTop = box.scrollHeight;
+}
+
+let zoneTimer;
+function zone(text, ms = 1400) {
+  const z = $('#zone-msg');
+  z.textContent = text;
+  z.classList.add('show');
+  clearTimeout(zoneTimer);
+  zoneTimer = setTimeout(() => z.classList.remove('show'), ms * speed + 300);
+}
+
+function toast(text, cls = '') {
+  const t = h('div', 'toast ' + cls, esc(text));
+  $('#toasts').append(t);
+  setTimeout(() => t.remove(), 2800);
+}
+
+// ---------------- tabuleiro ----------------
+const POS = {
+  [AI]: {
+    def: { forte: [493, 140], torre: [767, 135], porto: [1047, 140] },
+    atk: { forte: [496, 376], torre: [771, 388], porto: [1050, 376] },
+    base: { forte: [365, 150, 605, 325], torre: [645, 110, 885, 325], porto: [910, 155, 1200, 325] },
+    stored: [690, 325, 850, 358],
+    deck: [220, 180, 345, 365],
+    plate: [724, 35],
+  },
+  [HUMAN]: {
+    atk: { forte: [467, 681], torre: [736, 681], porto: [1001, 681] },
+    def: { forte: [467, 927], torre: [741, 937], porto: [1027, 927] },
+    base: { forte: [340, 700, 600, 880], torre: [615, 660, 860, 880], porto: [880, 700, 1170, 880] },
+    stored: [655, 865, 820, 898],
+    deck: [165, 720, 310, 905],
+    plate: [724, 1023],
+  },
+};
+const PX = (x) => (x / 1448) * 100 + '%';
+const PY = (y) => (y / 1086) * 100 + '%';
+function placeRect(e, [x1, y1, x2, y2]) {
+  Object.assign(e.style, { left: PX(x1), top: PY(y1), width: PX(x2 - x1), height: PY(y2 - y1) });
+}
+function placeAt(e, [x, y]) {
+  Object.assign(e.style, { left: PX(x), top: PY(y) });
+}
+
+const boardEls = { 0: {}, 1: {} };
+function buildBoard() {
+  const b = $('#board');
+  b.querySelectorAll('.ov, .slot, .plate').forEach((e) => e.remove());
+  for (const p of [HUMAN, AI]) {
+    const P = POS[p];
+    const els = (boardEls[p] = { base: {}, def: {} });
+    for (const base of E.BASES) {
+      const hit = h('div', 'ov base-hit');
+      placeRect(hit, P.base[base]);
+      hit.dataset.p = p;
+      hit.dataset.base = base;
+      hit.onclick = () => onBaseClick(p, base);
+      b.append(hit);
+      els.base[base] = hit;
+      const d = h('div', 'slot');
+      placeAt(d, P.def[base]);
+      b.append(d);
+      els.def[base] = d;
+    }
+    const st = h('div', 'ov stored');
+    placeRect(st, P.stored);
+    st.onclick = () => { if (p === HUMAN) submit({ type: 'retrieve' }); };
+    b.append(st);
+    els.stored = st;
+    const dk = h('div', 'ov deck-count');
+    placeRect(dk, P.deck);
+    b.append(dk);
+    els.deck = dk;
+    const pl = h('div', 'plate ' + (p === AI ? 'top' : 'bot'));
+    placeAt(pl, P.plate);
+    b.append(pl);
+    els.plate = pl;
+  }
+}
+
+function onBaseClick(p, base) {
+  if (awaiting !== 'action' || !selected) return;
+  const card = G.state.players[HUMAN].hand.find((c) => c.id === selected);
+  if (!card) return;
+  if (card.kind === 'atk' && p === AI) submit({ type: 'attack', cardId: card.id, base });
+  else if (card.kind === 'def' && p === HUMAN) submit({ type: 'defend', cardId: card.id, base });
+}
+
+const CRACK = `<svg class="crack" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M48 0 L52 22 L40 38 L55 55 L45 72 L58 100" stroke="#1a0d05" stroke-width="2.4" fill="none" stroke-linejoin="round"/><path d="M52 22 L68 30 M40 38 L26 44 M55 55 L72 60" stroke="#1a0d05" stroke-width="1.6" fill="none"/></svg>`;
+
+function render() {
+  if (!G) return;
+  const s = G.state;
+  const me = s.players[HUMAN];
+  const op = s.players[AI];
+  const selCard = selected ? me.hand.find((c) => c.id === selected) : null;
+  if (selected && !selCard) selected = null;
+
+  for (const p of [HUMAN, AI]) {
+    const pl = s.players[p];
+    const els = boardEls[p];
+    for (const b of E.BASES) {
+      const x = pl.bases[b];
+      const hit = els.base[b];
+      hit.className = 'ov base-hit';
+      hit.innerHTML = '';
+      if (x.hp <= 0) {
+        hit.classList.add('fallen');
+        hit.innerHTML = `<span class="stamp">${b === 'torre' ? 'CAÍDA' : 'CAÍDO'}</span>`;
+      } else if (b === 'forte' && x.hp === 1) {
+        hit.innerHTML = CRACK + '<span class="dmg-badge">Danificado</span>';
+      }
+      // alvos possíveis
+      if (awaiting === 'action' && selCard && x.hp > 0) {
+        if (selCard.kind === 'atk' && p === AI) hit.classList.add('target', 'atk');
+        if (selCard.kind === 'def' && p === HUMAN && !x.def) hit.classList.add('target', 'def');
+      }
+      hit.title = `${BN[b]} de ${pl.name}` + (x.hp <= 0 ? ' — caiu' : b === 'forte' ? ` — ${x.hp}/2 de resistência` : '');
+      // defesa
+      const slot = els.def[b];
+      slot.innerHTML = '';
+      if (x.def) {
+        const visible = p === HUMAN || E.defenseVisible(pl, b);
+        const mc = h('div', 'mcard' + (visible ? '' : ' back'));
+        if (visible) mc.style.backgroundImage = `url(${img(x.def.card)})`;
+        const lives = [0, 1].map((i) => `<i class="${i < x.def.life ? '' : 'off'}"></i>`).join('');
+        mc.innerHTML = `<span class="life" title="Turnos restantes">${lives}</span>`;
+        if (p === HUMAN) mc.innerHTML += E.defenseVisible(pl, b) ? '<span class="eye">visível</span>' : '<span class="eye" title="O adversário não vê">oculta</span>';
+        else if (visible) mc.innerHTML += '<span class="eye">visível</span>';
+        if (lastDefended && lastDefended.p === p && lastDefended.base === b) { mc.classList.add('defend-in'); }
+        if (visible) hoverPreview(mc, x.def.card);
+        slot.append(mc);
+      }
+    }
+    lastDefended = null;
+    // Torre
+    const st = els.stored;
+    const stored = pl.bases.torre.stored;
+    st.className = 'ov stored' + (stored ? ' has' : '');
+    st.innerHTML = '';
+    st.title = stored ? (p === HUMAN ? `Guardada: ${E.cardName(stored)}` : 'Uma carta guardada') : 'Torre vazia';
+    if (stored && p === HUMAN) {
+      if (awaiting === 'action' && E.isLegal(s, { type: 'retrieve' })) {
+        st.classList.add('can');
+        st.title += ' — clique para pegar de volta (grátis)';
+      }
+      const tip = h('div', 'tip');
+      tip.innerHTML = `<div class="mcard" style="background-image:url(${img(stored)})"></div>`;
+      hoverPreview(tip.firstChild, stored);
+      st.append(tip);
+    }
+    els.deck.innerHTML = `<span title="Cartas no baralho">${pl.deck.length}</span>`;
+    els.plate.textContent = pl.name;
+    els.plate.classList.toggle('active', s.current === p && s.phase !== 'over');
+  }
+
+  // HUD do adversário
+  const lv = G.levels[AI];
+  $('#opp-sub').innerHTML = `<span class="badge lv-${lv}">${LEVELS[lv].label}</span> ${op.bonus ? ' · <b>2 ações no próximo turno</b>' : ''}`;
+  const oh = $('#opp-hand');
+  oh.innerHTML = '';
+  for (let i = 0; i < Math.min(op.hand.length, 12); i++) oh.append(h('span', 'mini-back'));
+  oh.append(h('span', 'n', `${op.hand.length} na mão`));
+
+  renderHand(selCard);
+  renderStatus(selCard);
+}
+
+function renderHand() {
+  const s = G.state;
+  const hand = s.players[HUMAN].hand.slice().sort((a, b) => kindOrder(a) - kindOrder(b) || a.v - b.v);
+  const el = $('#hand');
+  el.innerHTML = '';
+  if (!hand.length) { el.append(h('div', 'empty-hand', 'Sua mão está vazia.')); return; }
+  const w = el.clientWidth - 24;
+  const cw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 104;
+  const need = hand.length * (cw + 6);
+  el.style.setProperty('--overlap', need > w ? `${Math.max(-cw * 0.62, (w - cw) / Math.max(1, hand.length - 1) - cw)}px` : '6px');
+  const myTurn = awaiting === 'action';
+  for (const c of hand) {
+    const b = h('button', 'hcard');
+    b.style.backgroundImage = `url(${img(c)})`;
+    b.setAttribute('aria-label', E.cardName(c));
+    if (c.id === selected) b.classList.add('sel');
+    if (!myTurn) b.classList.add('dim');
+    if (newIds.has(c.id)) b.classList.add('new');
+    b.onclick = () => {
+      if (awaiting !== 'action') return;
+      selected = selected === c.id ? null : c.id;
+      render();
+    };
+    hoverPreview(b, c);
+    el.append(b);
+  }
+}
+const kindOrder = (c) => ({ atk: 0, def: 1, mare: 2 })[c.kind];
+
+function renderStatus(selCard) {
+  const s = G.state;
+  const txt = $('#status-text');
+  const acts = $('#status-actions');
+  acts.innerHTML = '';
+  const btn = (label, cls, fn) => { const b = h('button', 'btn small ' + cls, label); b.onclick = fn; acts.append(b); return b; };
+  if (s.phase === 'over') { txt.innerHTML = s.winner === HUMAN ? '<b>Você venceu!</b>' : `<b>${esc(G.names[AI])}</b> venceu.`; return; }
+  if (awaiting !== 'action') {
+    txt.innerHTML = s.current === AI ? `Vez de <b>${esc(G.names[AI])}</b>…` : 'Aguarde…';
+    return;
+  }
+  const left = s.actionsLeft > 1 ? ` <b>(${s.actionsLeft} ações restantes)</b>` : '';
+  const legal = E.legalActions(s);
+  if (!selCard) {
+    txt.innerHTML = `Seu turno: escolha uma carta da mão.${left}`;
+    if (legal.some((a) => a.type === 'retrieve')) btn('Pegar carta da Torre (grátis)', 'sea', () => submit({ type: 'retrieve' }));
+    if (legal.some((a) => a.type === 'pass')) {
+      txt.innerHTML = `Nenhuma ação possível.${left}`;
+      btn('Passar a vez', 'primary', () => submit({ type: 'pass' }));
+    }
+    return;
+  }
+  const canStore = E.isLegal(s, { type: 'store', cardId: selCard.id });
+  if (selCard.kind === 'atk') txt.innerHTML = `Clique numa base do adversário para atacar com <b>${E.cardName(selCard)}</b>.${left}`;
+  else if (selCard.kind === 'def') {
+    const any = E.BASES.some((b) => E.isLegal(s, { type: 'defend', cardId: selCard.id, base: b }));
+    txt.innerHTML = any ? `Clique numa das suas bases para defender com <b>${E.cardName(selCard)}</b>.${left}` : `Todas as suas bases de pé já têm defesa.${left}`;
+  } else {
+    txt.innerHTML = `<b>Maré</b>: cada jogador entrega 1 carta da mão ao outro.${left}`;
+    btn('Usar Maré', 'sea', () => submit({ type: 'mare', cardId: selCard.id }));
+  }
+  if (canStore) btn('Guardar na Torre', '', () => submit({ type: 'store', cardId: selCard.id }));
+  btn('Cancelar', 'ghost', () => { selected = null; render(); });
+}
+
+// pré-visualização ampliada (desktop)
+const preview = $('#preview');
+function hoverPreview(el, card) {
+  el.addEventListener('mouseenter', () => {
+    preview.querySelector('img').src = img(card);
+    preview.hidden = false;
+  });
+  el.addEventListener('mousemove', (e) => {
+    const w = 230, hgt = 340;
+    let x = e.clientX + 24, y = e.clientY - hgt / 2;
+    if (x + w > innerWidth) x = e.clientX - w - 24;
+    y = Math.max(8, Math.min(innerHeight - hgt - 8, y));
+    preview.style.left = x + 'px';
+    preview.style.top = y + 'px';
+  });
+  el.addEventListener('mouseleave', () => (preview.hidden = true));
+}
+
+// ---------------- modais ----------------
+function showModal(html) {
+  preview.hidden = true;
+  $('#modal-box').innerHTML = html;
+  $('#modal').hidden = false;
+}
+function hideModal() { $('#modal').hidden = true; }
+
+function clickOrWait(ms) {
+  return new Promise((r) => {
+    const m = $('#modal');
+    let done = false;
+    const fin = () => { if (done) return; done = true; m.removeEventListener('click', fin); r(); };
+    m.addEventListener('click', fin);
+    setTimeout(fin, ms * speed);
+  });
+}
+
+async function showCombat(ev) {
+  const me = ev.p === HUMAN;
+  const attacker = me ? 'Você' : G.names[AI];
+  const defender = me ? G.names[AI] : 'Você';
+  // carta voando para o espaço de ataque
+  const targetP = me ? AI : HUMAN;
+  const fly = h('div', 'atk-fly mcard');
+  fly.style.backgroundImage = `url(${img(ev.atk)})`;
+  placeAt(fly, POS[targetP].atk[ev.base]);
+  $('#board').append(fly);
+  await wait(450);
+
+  const defHtml = ev.def
+    ? `<div class="ccard" id="c-def"><div class="inner"><div class="card-back"></div><div class="face" style="background-image:url(${img(ev.def)})"></div></div></div>`
+    : `<div class="ccard nodef">Base sem defesa</div>`;
+  showModal(`
+    <h2>${me ? `Você ataca ${art(ev.base)} ${BN[ev.base]} de ${esc(G.names[AI])}` : `${esc(attacker)} ataca ${art(ev.base) === 'a' ? 'sua' : 'seu'} ${BN[ev.base]}`}</h2>
+    <div class="combat">
+      <div class="side"><div class="who">${esc(attacker)}</div><div class="ccard"><div class="face" style="position:static;transform:none;width:100%;height:100%;background-image:url(${img(ev.atk)})"></div></div></div>
+      <div class="vs">×</div>
+      <div class="side"><div class="who">${esc(defender)} · ${BN[ev.base]}</div>${defHtml}</div>
+    </div>
+    <div class="result" id="c-res"></div>
+    <div class="modal-hint">clique para continuar</div>`);
+  await wait(500);
+  if (ev.def) { $('#c-def').classList.add('flipped'); await wait(750); }
+  const good = me ? ['hit', 'pierce'].includes(ev.result) : ['block', 'repel'].includes(ev.result);
+  const neutral = ev.result === 'block';
+  let main = {
+    hit: `Acertou ${art(ev.base)} ${BN[ev.base]}!`,
+    pierce: `${E.cardName(ev.atk)} atravessou o escudo e acertou!`,
+    block: 'Empate — golpe anulado.',
+    repel: 'Golpe anulado!',
+  }[ev.result];
+  const extra = [];
+  if (ev.fell) {
+    const fem = ev.base === 'torre';
+    extra.push(me ? `${fem ? 'A' : 'O'} ${BN[ev.base]} de ${G.names[AI]} caiu!` : `${fem ? 'Sua' : 'Seu'} ${BN[ev.base]} caiu!`);
+  }
+  if (ev.damaged) extra.push(me ? 'O Forte inimigo ficou danificado (a defesa dele agora fica visível).' : 'Seu Forte ficou danificado (a defesa dele agora fica visível).');
+  if (ev.result === 'repel') extra.push(`${me ? G.names[AI] + ' fará' : 'Você fará'} 2 ações no próximo turno.`);
+  if (ev.lostStored) extra.push('A carta guardada na Torre voltou ao baralho.');
+  if (ev.fell && ev.base === 'torre') extra.push(me ? 'Você vai pegar 1 carta da mão do adversário.' : `${G.names[AI]} vai pegar 1 carta da sua mão.`);
+  const res = $('#c-res');
+  res.className = 'result show ' + (neutral ? 'neutral' : good ? 'good' : 'bad');
+  res.innerHTML = esc(main) + (extra.length ? `<small>${extra.map(esc).join('<br>')}</small>` : '');
+  render();
+  await clickOrWait(ev.fell ? 2600 : 1900);
+  hideModal();
+  fly.remove();
+}
+
+async function showMareBanner(ev) {
+  const me = ev.p === HUMAN;
+  showModal(`<h2>🌊 Maré!</h2>
+    <div class="combat"><div class="ccard"><div class="face" style="position:static;transform:none;width:100%;height:100%;background-image:url(${img(ev.card)})"></div></div></div>
+    <p>${me ? 'Você' : esc(G.names[AI])} ${ev.source === 'draw' ? 'comprou' : 'usou'} uma Maré. Cada jogador escolhe 1 carta da própria mão e entrega ao outro. Depois a Maré vai para o fundo do baralho.</p>
+    <div class="modal-hint">clique para continuar</div>`);
+  await clickOrWait(1800);
+  hideModal();
+}
+
+function askMare() {
+  return new Promise((resolve) => {
+    const hand = G.state.players[HUMAN].hand.slice().sort((a, b) => kindOrder(a) - kindOrder(b) || a.v - b.v);
+    showModal(`<h2>🌊 Maré — escolha a carta para entregar</h2>
+      <p>Escolha 1 carta da sua mão para entregar a <b>${esc(G.names[AI])}</b>.</p>
+      <div class="pick-grid" id="pick"></div>`);
+    const pick = $('#pick');
+    for (const c of hand) {
+      const b = h('button', 'hcard');
+      b.style.backgroundImage = `url(${img(c)})`;
+      b.title = E.cardName(c);
+      b.onclick = () => { hideModal(); resolve(c.id); };
+      pick.append(b);
+    }
+  });
+}
+
+async function showSwap(mine, theirs) {
+  const cardBox = (c, label) => `<div class="side"><div class="who">${label}</div>${c ? `<div class="ccard"><div class="face" style="position:static;transform:none;width:100%;height:100%;background-image:url(${img(c)})"></div></div>` : '<div class="ccard nodef">nada</div>'}</div>`;
+  showModal(`<h2>Troca da Maré</h2>
+    <div class="combat">${cardBox(mine, 'Você entregou')}<div class="vs">⇄</div>${cardBox(theirs, 'Você recebeu')}</div>
+    <div class="modal-hint">clique para continuar</div>`);
+  await clickOrWait(2600);
+  hideModal();
+}
+
+function askSteal(n) {
+  return new Promise((resolve) => {
+    showModal(`<h2>A Torre caiu!</h2>
+      <p>Escolha 1 carta da mão de <b>${esc(G.names[AI])}</b> — sem ver os desenhos.</p>
+      <div class="pick-grid" id="pick"></div>`);
+    const pick = $('#pick');
+    for (let i = 0; i < n; i++) {
+      const b = h('button', 'card-back');
+      b.setAttribute('aria-label', `Carta ${i + 1}`);
+      b.onclick = () => { hideModal(); resolve(i); };
+      pick.append(b);
+    }
+  });
+}
+
+function finishGame() {
+  const s = G.state;
+  render();
+  const won = s.winner === HUMAN;
+  const turns = s.turn;
+  if (G.mode === 'tournament') {
+    setTimeout(() => afterTournamentGame(s.winner, turns), 700);
+    return;
+  }
+  SAVE.game = null;
+  SAVE.stats = SAVE.stats || { w: 0, l: 0 };
+  SAVE.stats[won ? 'w' : 'l']++;
+  persist();
+  const level = G.levels[AI];
+  setTimeout(() => {
+    showModal(`<h2 class="big-title">${won ? 'Vitória!' : 'Derrota'}</h2>
+      <p>${won ? `Você derrubou as três bases de ${esc(G.names[AI])}.` : `${esc(G.names[AI])} derrubou as suas três bases.`}${s.endReason === 'limit' ? ' (limite de turnos atingido)' : ''}</p>
+      <p>Seu histórico em partidas rápidas: ${SAVE.stats.w} vitória(s), ${SAVE.stats.l} derrota(s).</p>
+      <div class="row center"><button class="btn ghost" id="m-menu">Menu</button><button class="btn primary" id="m-again">Jogar de novo</button></div>`);
+    $('#m-menu').onclick = () => { hideModal(); go('menu'); };
+    $('#m-again').onclick = () => { hideModal(); startQuick(level); };
+  }, 700);
+}
+
+addEventListener('resize', () => { if (G && document.querySelector('#scr-game.active')) renderHand(); });
+
+refreshMenu();

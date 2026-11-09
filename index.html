@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Gachaqui</title>
+  <meta name="description" content="Gachaqui — jogo de cartas de ataque e defesa. Jogue contra a IA ou dispute um torneio de 8 jogadores.">
+  <meta name="theme-color" content="#1d2a4a">
+  <link rel="icon" href="assets/cards/atk9.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@600;800&family=Alegreya:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- MENU -->
+  <section id="scr-menu" class="screen active">
+    <div class="parchment menu">
+      <h1 class="logo">Gachaqui</h1>
+      <p class="tagline">Ataque, defenda e derrube as três bases do adversário.</p>
+      <div class="menu-buttons">
+        <button class="btn big" id="btn-continue" hidden>Continuar torneio</button>
+        <button class="btn big primary" data-go="tsetup">Torneio · 8 jogadores</button>
+        <button class="btn big" data-go="quick">Partida rápida</button>
+        <button class="btn big ghost" data-go="rules">Como jogar</button>
+      </div>
+      <div class="menu-cards" aria-hidden="true">
+        <img src="assets/cards/atk9.webp" alt=""><img src="assets/cards/mare.webp" alt=""><img src="assets/cards/def9.webp" alt="">
+      </div>
+    </div>
+  </section>
+
+  <!-- CONFIGURAR TORNEIO -->
+  <section id="scr-tsetup" class="screen">
+    <div class="parchment narrow">
+      <h2>Novo torneio</h2>
+      <p>Oito capitães, chave eliminatória: quartas, semifinal e final. Você enfrenta a IA; os outros duelos são disputados entre as IAs.</p>
+      <label class="field">Seu nome
+        <input id="in-name" maxlength="18" placeholder="Capitão(ã)" autocomplete="nickname">
+      </label>
+      <fieldset class="field">
+        <legend>Cada confronto é</legend>
+        <label class="radio"><input type="radio" name="bestof" value="1"> Melhor de 1</label>
+        <label class="radio"><input type="radio" name="bestof" value="3" checked> Melhor de 3</label>
+        <label class="radio"><input type="radio" name="bestof" value="5"> Melhor de 5</label>
+      </fieldset>
+      <div class="row">
+        <button class="btn ghost" data-go="menu">Voltar</button>
+        <button class="btn primary" id="btn-tstart">Começar torneio</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHAVE -->
+  <section id="scr-bracket" class="screen">
+    <div class="parchment wide">
+      <div class="bracket-head">
+        <button class="btn ghost small" data-go="menu">← Menu</button>
+        <h2 id="bracket-title">Torneio</h2>
+        <span class="badge" id="bracket-format"></span>
+      </div>
+      <div id="bracket" class="bracket"></div>
+      <div id="bracket-msg" class="bracket-msg"></div>
+      <div class="row center" id="bracket-actions"></div>
+    </div>
+  </section>
+
+  <!-- PARTIDA RÁPIDA -->
+  <section id="scr-quick" class="screen">
+    <div class="parchment narrow">
+      <h2>Partida rápida</h2>
+      <p>Escolha a força do adversário.</p>
+      <div class="level-grid" id="level-grid"></div>
+      <div class="row"><button class="btn ghost" data-go="menu">Voltar</button></div>
+    </div>
+  </section>
+
+  <!-- REGRAS -->
+  <section id="scr-rules" class="screen">
+    <div class="parchment rules">
+      <div class="row between"><h2>Como jogar</h2><button class="btn ghost small" data-back>Voltar</button></div>
+      <div id="rules-body"></div>
+      <div class="row center"><button class="btn" data-back>Voltar</button></div>
+    </div>
+  </section>
+
+  <!-- JOGO -->
+  <section id="scr-game" class="screen">
+    <div class="game">
+      <header class="hud">
+        <button class="btn ghost small" id="btn-quit" title="Sair da partida">☰</button>
+        <div class="hud-opp">
+          <span class="crest" id="opp-crest"></span>
+          <div>
+            <div class="hud-name" id="opp-name"></div>
+            <div class="hud-sub" id="opp-sub"></div>
+          </div>
+          <div class="opp-hand" id="opp-hand" title="Cartas na mão do adversário"></div>
+        </div>
+        <div class="hud-series" id="hud-series"></div>
+        <div class="hud-tools">
+          <button class="btn ghost small" id="btn-speed" title="Velocidade da IA">Normal</button>
+          <button class="btn ghost small" id="btn-log" title="Histórico">Histórico</button>
+          <button class="btn ghost small" data-rules title="Regras">?</button>
+        </div>
+      </header>
+
+      <div class="table">
+        <div class="board-wrap">
+          <div class="board" id="board">
+            <div class="zone-msg" id="zone-msg"></div>
+          </div>
+        </div>
+        <aside class="log" id="log"><h3>Histórico</h3><ol id="log-list"></ol></aside>
+      </div>
+
+      <div class="status">
+        <div class="status-text" id="status-text"></div>
+        <div class="status-actions" id="status-actions"></div>
+      </div>
+      <div class="hand" id="hand"></div>
+    </div>
+  </section>
+</div>
+
+<!-- MODAL GENÉRICO -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-box" id="modal-box"></div>
+</div>
+<div class="toasts" id="toasts"></div>
+<div class="preview" id="preview" hidden><img alt=""></div>
+
+<script type="module" src="js/ui.js"></script>
+</body>
+</html>
