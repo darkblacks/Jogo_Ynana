@@ -43,6 +43,16 @@ O modo online precisa de um servidor Node rodando. O jeito mais simples é o **R
 
 No plano gratuito do Render, o servidor "dorme" depois de 15 minutos sem uso, e o primeiro acesso depois disso leva uns 50 segundos para abrir.
 
+### No seu próprio servidor (VPS)
+
+Em qualquer servidor Linux Ubuntu/Debian, clone o repositório e rode o instalador. Ele instala o Node se precisar, cria um serviço que sobe sozinho e, se você passar um domínio, configura HTTPS automático com o Caddy:
+
+```bash
+git clone https://github.com/darkblacks/Jogo_Ynana.git gachaqui && cd gachaqui
+sudo bash deploy/instalar.sh                  # http://IP-DO-SERVIDOR:8080
+sudo bash deploy/instalar.sh meujogo.com.br   # https://meujogo.com.br
+```
+
 Outras opções que também funcionam: **Railway** e **Fly.io** (usam o `Dockerfile`), ou qualquer VPS com Node 18+ (`npm install && npm start`; a porta vem da variável `PORT`).
 
 ### Só o site, sem servidor
