@@ -525,3 +525,5 @@ button { font: inherit; }
   .tut-text { font-size: .95rem; padding: 8px 10px; line-height: 1.4; }
   .tut-actions { min-height: 0; }
 }
+
+.status-actions .hint { align-self: center; font-size: .85rem; opacity: .8; font-style: italic; }

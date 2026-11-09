@@ -18,7 +18,7 @@ const h = (tag, cls, html) => {
   return e;
 };
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-const img = (c) => (c.kind === 'mare' ? 'assets/cards/mare.webp' : `assets/cards/${c.kind}${c.v}.webp`);
+const img = (c) => (c.kind === 'mare' || c.kind === 'saque' ? `assets/cards/${c.kind}.webp` : `assets/cards/${c.kind}${c.v}.webp`);
 const BN = E.BASE_NAMES;
 const art = (b) => (b === 'torre' ? 'a' : 'o'); // "a Torre", "o Forte", "o Porto"
 
@@ -410,7 +410,7 @@ async function run(initialEvents) {
     }
     if (s.phase === 'steal') {
       if (s.steal.to === HUMAN) {
-        const idx = await askSteal(s.players[AI].hand.length);
+        const idx = await askSteal(s.players[AI].hand.length, s.steal && s.steal.source);
         if (!alive()) return;
         await play(E.stealPick(s, idx));
       } else {
@@ -497,9 +497,18 @@ async function play(events) {
         logLine(me ? `Você pegou ${E.cardName(ev.card)} de volta da Torre.` : `${esc(G.names[AI])} pegou a carta guardada na Torre.`, me ? 'me' : '');
         if (!me) { render(); zone(`${G.names[AI]} pegou a carta da Torre`); await wait(700); }
         break;
-      case 'pass':
-        logLine(`${nameOf(ev.p)} ${me ? 'passou' : 'passou'} (nenhuma ação possível).`);
-        if (!me) { zone(`${G.names[AI]} passou a vez`); await wait(800); }
+      case 'drawAction':
+        logLine(`${me ? 'Você comprou' : esc(G.names[AI]) + ' comprou'} uma carta como ação.`, me ? 'me' : '');
+        if (!me) { render(); zone(`${G.names[AI]} comprou uma carta`); await wait(800); }
+        break;
+      case 'saqueReveal':
+        logLine(`💰 <b>Saque!</b> ${me ? 'Você' : esc(G.names[AI])} ${ev.source === 'draw' ? 'comprou' : 'usou'} um Saque.`, 'big');
+        render();
+        await showSaqueBanner(ev);
+        if (!me) say('steal');
+        break;
+      case 'saqueEmpty':
+        logLine(`O Saque não pegou nada: ${me ? esc(G.names[AI]) + ' está' : 'você está'} sem cartas na mão.`);
         break;
       case 'mareReveal':
         logLine(`🌊 <b>Maré!</b> ${me ? 'Você' : esc(G.names[AI])} ${ev.source === 'draw' ? 'comprou' : 'usou'} uma Maré.`, 'big');
@@ -523,7 +532,7 @@ async function play(events) {
         else say(ev.result === 'hit' || ev.result === 'pierce' ? (ev.fell ? 'lost' : 'hurt') : 'defended', ev.fell || ev.result === 'repel');
         break;
       case 'steal':
-        if (ev.to === HUMAN) { newIds.add(ev.card.id); logLine(`Você pegou ${E.cardName(ev.card)} da mão de ${esc(G.names[AI])}.`, 'me big'); toast(`Você pegou ${E.cardName(ev.card)}!`, 'sea'); }
+        if (ev.to === HUMAN) { newIds.add(ev.card.id); logLine(`Você pegou ${E.cardName(ev.card)} da mão de ${esc(G.names[AI])}${ev.source === 'saque' ? ' com o Saque' : ''}.`, 'me big'); toast(`Você pegou ${E.cardName(ev.card)}!`, 'sea'); }
         else { logLine(`${esc(G.names[AI])} pegou ${E.cardName(ev.card)} da sua mão.`, 'big'); toast(`${G.names[AI]} pegou ${E.cardName(ev.card)} da sua mão!`, 'red'); say('steal', true); }
         render();
         await wait(600);
@@ -761,7 +770,7 @@ function renderHand() {
     el.append(b);
   }
 }
-const kindOrder = (c) => ({ atk: 0, def: 1, mare: 2 })[c.kind];
+const kindOrder = (c) => ({ atk: 0, def: 1, mare: 2, saque: 3 })[c.kind];
 
 function renderStatus(selCard) {
   const s = G.state;
@@ -781,10 +790,7 @@ function renderStatus(selCard) {
   if (!selCard) {
     txt.innerHTML = `Seu turno: escolha uma carta da mão.${left}`;
     if (legal.some((a) => a.type === 'retrieve')) btn('Pegar carta da Torre (grátis)', 'sea', () => submit({ type: 'retrieve' }));
-    if (legal.some((a) => a.type === 'pass')) {
-      txt.innerHTML = `Nenhuma ação possível.${left}`;
-      btn('Passar a vez', 'primary', () => submit({ type: 'pass' }));
-    }
+    btn('Comprar carta', 'primary', () => submit({ type: 'draw' })).title = 'Usa a ação para comprar 1 carta e passar a vez';
     return;
   }
   const canStore = E.isLegal(s, { type: 'store', cardId: selCard.id });
@@ -792,11 +798,15 @@ function renderStatus(selCard) {
   else if (selCard.kind === 'def') {
     const any = E.BASES.some((b) => E.isLegal(s, { type: 'defend', cardId: selCard.id, base: b }));
     txt.innerHTML = any ? `Clique numa das suas bases para defender com <b>${E.cardName(selCard)}</b>.${left}` : `Todas as suas bases de pé já têm defesa.${left}`;
+  } else if (selCard.kind === 'saque') {
+    txt.innerHTML = `<b>Saque</b>: pegue 1 carta da mão do adversário, sem ver.${left}`;
+    btn('Usar Saque', 'sea', () => submit({ type: 'saque', cardId: selCard.id }));
   } else {
     txt.innerHTML = `<b>Maré</b>: cada jogador entrega 1 carta da mão ao outro.${left}`;
     btn('Usar Maré', 'sea', () => submit({ type: 'mare', cardId: selCard.id }));
   }
-  if (canStore) btn('Guardar na Torre', '', () => submit({ type: 'store', cardId: selCard.id }));
+  if (canStore) btn('Guardar na Torre (grátis)', '', () => submit({ type: 'store', cardId: selCard.id }));
+  else if (selCard && E.isUp(s.players[HUMAN], 'torre') && s.players[HUMAN].bases.torre.stored) acts.append(h('span', 'hint', 'Torre ocupada'));
   btn('Cancelar', 'ghost', () => { selected = null; render(); });
 }
 
@@ -898,6 +908,16 @@ async function showMareBanner(ev) {
   hideModal();
 }
 
+async function showSaqueBanner(ev) {
+  const me = ev.p === HUMAN;
+  showModal(`<h2>💰 Saque!</h2>
+    <div class="combat"><div class="ccard"><div class="face" style="position:static;transform:none;width:100%;height:100%;background-image:url(${img(ev.card)})"></div></div></div>
+    <p>${me ? 'Você' : esc(G.names[AI])} ${ev.source === 'draw' ? 'comprou' : 'usou'} um Saque: ${me ? 'você pega' : 'pega'} 1 carta da mão ${me ? 'de ' + esc(G.names[AI]) : 'sua'}, sem ver. Cartas guardadas na Torre estão protegidas. Depois o Saque vai para o fundo do baralho.</p>
+    <div class="modal-hint">clique para continuar</div>`);
+  await clickOrWait(2000);
+  hideModal();
+}
+
 function askMare() {
   return new Promise((resolve) => {
     const hand = G.state.players[HUMAN].hand.slice().sort((a, b) => kindOrder(a) - kindOrder(b) || a.v - b.v);
@@ -925,9 +945,9 @@ async function showSwap(mine, theirs) {
   hideModal();
 }
 
-function askSteal(n) {
+function askSteal(n, source = 'torre') {
   return new Promise((resolve) => {
-    showModal(`<h2>A Torre caiu!</h2>
+    showModal(`<h2>${source === 'saque' ? '💰 Saque!' : 'A Torre caiu!'}</h2>
       <p>Escolha 1 carta da mão de <b>${esc(G.names[AI])}</b> — sem ver os desenhos.</p>
       <div class="pick-grid" id="pick"></div>`);
     const pick = $('#pick');
@@ -1075,11 +1095,17 @@ async function startTutorial() {
       if (!alive()) return;
       await play(E.act(s, rokuAction(s, st.roku)));
     } else if (st.steal) {
-      await askSteal(s.players[AI].hand.length);
+      await askSteal(s.players[AI].hand.length, s.steal && s.steal.source);
       if (!alive()) return;
       // tanto faz a carta clicada: no tutorial, sai sempre uma carta que não muda a aula
       let idx = s.players[AI].hand.findIndex((c) => c.kind === 'def' && c.v === 2);
       await play(E.stealPick(s, Math.max(0, idx)));
+    } else if (st.rokuSteal) {
+      if (s.phase === 'steal' && s.steal.to === AI) {
+        tutSay('<i>Escolhendo uma carta sua…</i>', [], false, i);
+        await wait(700);
+        await play(E.stealPick(s, chooseSteal(E.viewFor(s, AI))));
+      }
     } else if (st.mare) {
       if (s.phase === 'mare') {
         const g = s.players[AI].hand.find((c) => c.kind === st.mare.give.kind && c.v === st.mare.give.v) || s.players[AI].hand[0];
@@ -1336,7 +1362,7 @@ async function handleUpdate(msg) {
     const id = await askMare();
     if (id) sendNet({ t: 'mare', cardId: id });
   } else if (s.phase === 'steal') {
-    const idx = await askSteal(s.players[AI].hand.length);
+    const idx = await askSteal(s.players[AI].hand.length, s.steal && s.steal.source);
     if (idx != null) sendNet({ t: 'steal', index: idx });
   }
 }

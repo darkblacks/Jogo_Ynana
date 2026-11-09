@@ -74,7 +74,7 @@ Os adversários são personagens de *Os Contos de Ynana*, cada um com retrato, f
 | Seraphine Dreya | 4ª — Difícil | Elegante, gosta da Maré e da Torre |
 | Al-Mosafar | 5ª — Médio | Calculista |
 | Ibrahim | 6ª — Médio | Ladino, mira a Torre para roubar cartas |
-| Roku Sonedrasta | 7ª — Médio | Malandro; também é o professor do tutorial |
+| Roku Sonedrasta | 7ª — Fácil | Malandro; também é o professor do tutorial |
 
 No torneio entram os 7. A posição na chave é sorteada, com três regras: o mais fraco enfrenta o jogador nas quartas, o Rufus fica na metade do jogador (semifinal) e a Ynana na outra metade (final).
 
@@ -86,9 +86,12 @@ Para adicionar um personagem: coloque o rosto em `frontend/assets/chars/<id>.web
 
 As regras originais não fixam alguns detalhes. Estas são as "regras da casa" adotadas (em `frontend/js/engine.js`):
 
-- Baralho de 28 cartas por jogador: ataques 1/3/6/9 (4/4/3/2), escudos 2/3/6/9 (4/4/3/2) e 2 Marés.
+- Baralho de 30 cartas por jogador: ataques 1/3/6/9 (4/4/3/2), escudos 2/3/6/9 (4/4/3/2), 2 Marés e 2 Saques.
+- **Saque** (carta especial): ao ser comprado, quem comprou pega 1 carta da mão do adversário, sem ver. Cartas guardadas na Torre estão protegidas.
+- **Guardar na Torre não gasta ação**, e a carta fica lá por tempo indeterminado. Pegar de volta é grátis no início do turno.
+- **Comprar carta** é uma ação sempre disponível: compra 1 carta e passa a vez (substitui o "passar a vez").
 - A defesa volta ao baralho no início do 2º turno do dono depois de colocada (protege durante dois turnos do adversário).
-- Uma Maré que chegue à mão por troca, saque ou Torre também pode ser usada como ação.
-- Sem ação possível, o jogador passa a vez. Com o baralho vazio, não compra.
+- Maré ou Saque que chegue à mão por qualquer caminho pode ser usado como ação.
+- Com o baralho vazio, não compra.
 - Ganhar "2 ações" mais de uma vez antes do próprio turno continua valendo 2 ações.
 - Limite de segurança de 400 turnos; nesse caso vence quem tiver mais resistência nas bases.

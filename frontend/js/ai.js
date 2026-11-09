@@ -121,14 +121,30 @@ function scoreDefend(view, card, b) {
 function cardWorth(c) {
   // usado para escolher o que entregar na Maré / guardar
   if (c.kind === 'mare') return 3.5;
+  if (c.kind === 'saque') return 4.5;
   if (c.kind === 'atk') return { 1: 1, 3: 3, 6: 6, 9: 9.5 }[c.v];
   return { 2: 1.5, 3: 2.5, 6: 5.5, 9: 8.5 }[c.v];
 }
 
 function scoreStore(view, card) {
-  // Guardar protege a carta da Maré e do saque da Torre
+  // Guardar é grátis e protege a carta de Saque e do roubo da Torre.
+  // Vale para a melhor carta quando há outras opções na mão; senão, pouco.
   const best = Math.max(...view.hand.map(cardWorth));
-  return cardWorth(card) === best ? 0.4 + best * 0.05 : 0.1;
+  if (cardWorth(card) !== best || view.hand.length < 4) return 0.1;
+  return best >= 8 ? 2.2 : 0.5;
+}
+
+function scoreSaque(view) {
+  if (!view.opp.handCount) return -1;
+  return 2 + Math.min(view.opp.handCount, 6) * 0.2;
+}
+
+function scoreDraw(view) {
+  // "Comprar carta": passa a vez com uma carta a mais
+  let s = 0.3;
+  if (view.hand.length <= 2) s += 0.8;
+  if (!view.deckCount) s -= 2;
+  return s;
 }
 
 function scoreMare(view, level) {
@@ -167,6 +183,8 @@ export function chooseAction(view, legal, levelKey, rng = Math.random) {
       case 'defend': s = scoreDefend(view, c, a.base); break;
       case 'store': s = scoreStore(view, c); break;
       case 'mare': s = scoreMare(view, level); break;
+      case 'saque': s = scoreSaque(view); break;
+      case 'draw': s = scoreDraw(view); break;
       case 'retrieve': s = scoreRetrieve(view); break;
       default: s = -50;
     }
@@ -235,32 +253,32 @@ function shuffleWith(arr, rng) {
   }
 }
 
-function rollout(c, rng, maxSteps = 600) {
+function rollout(c, rng, maxSteps = 600, policy = 'medio') {
   let n = 0;
   while (c.phase !== 'over' && n++ < maxSteps) {
     const who = _pend(c);
-    if (c.phase === 'action') _act(c, chooseAction(_view(c, who[0]), _legal(c), 'medio', rng));
+    if (c.phase === 'action') _act(c, chooseAction(_view(c, who[0]), _legal(c), policy, rng));
     else if (c.phase === 'mare') { for (const q of who) if (c.phase === 'mare') _mareGive(c, q, chooseMareGive(_view(c, q), 'medio', rng)); }
     else if (c.phase === 'steal') _steal(c, chooseSteal(_view(c, who[0]), rng));
   }
   return c.winner;
 }
 
-export function chooseActionSearch(s, p, rng = Math.random, rollouts = 24, style = null) {
+export function chooseActionSearch(s, p, rng = Math.random, rollouts = 24, style = null, width = 7, policy = 'medio') {
   const legal = _legal(s);
   if (legal.length === 1) return legal[0];
   const view = _view(s, p);
   // filtra ações claramente ruins para economizar tempo (o estilo pesa na escolha dos candidatos)
   const prelim = legal.map((a) => ({ a, h: styled(heuristicScore(view, a), a, view, style) })).sort((x, y) => y.h - x.h);
   if (prelim[0].h >= 900) return prelim[0].a; // vitória imediata
-  const cands = prelim.slice(0, 7);
+  const cands = prelim.slice(0, width);
   let best = null;
   for (const cand of cands) {
     let wins = 0;
     for (let i = 0; i < rollouts; i++) {
       const c = determinize(s, p, rng);
       _act(c, cand.a);
-      if (rollout(c, rng) === p) wins++;
+      if (rollout(c, rng, 600, policy) === p) wins++;
     }
     // desempate pela heurística; com estilo, a personalidade pesa um pouco mais
     const score = wins / rollouts + cand.h * (style ? 0.006 : 0.002);
@@ -277,6 +295,8 @@ function heuristicScore(view, a) {
     case 'defend': return scoreDefend(view, c, a.base);
     case 'store': return scoreStore(view, c);
     case 'mare': return scoreMare(view, level);
+    case 'saque': return scoreSaque(view);
+    case 'draw': return scoreDraw(view);
     case 'retrieve': return scoreRetrieve(view);
     default: return -50;
   }
@@ -285,6 +305,6 @@ function heuristicScore(view, a) {
 // Ponto de entrada único: decide a ação do jogador p no estado s.
 export function decideAction(s, p, levelKey, rng = Math.random) {
   const level = resolveProfile(levelKey);
-  if (level.search) return chooseActionSearch(s, p, rng, level.search, level.style);
+  if (level.search) return chooseActionSearch(s, p, rng, level.search, level.style, level.width || 7, level.rollout || 'medio');
   return chooseAction(_view(s, p), _legal(s), levelKey, rng);
 }

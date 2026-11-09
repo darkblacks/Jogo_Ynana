@@ -9,6 +9,7 @@ export const DECK_COMPOSITION = {
   atk: { 1: 4, 3: 4, 6: 3, 9: 2 },
   def: { 2: 4, 3: 4, 6: 3, 9: 2 },
   mare: 2,
+  saque: 2,
 };
 
 export const DEFENSE_LIFE = 2;      // turnos do dono
@@ -17,6 +18,7 @@ export const MAX_TURNS = 400;       // trava de segurança contra partidas infin
 export function cardName(c) {
   if (!c) return '?';
   if (c.kind === 'mare') return 'Maré';
+  if (c.kind === 'saque') return 'Saque';
   if (c.kind === 'atk') return ({ 1: 'Espada', 3: 'Lança', 6: 'Ataque 6', 9: 'Canhão' })[c.v] + ` (${c.v})`;
   return `Escudo (${c.v})`;
 }
@@ -43,6 +45,7 @@ function buildDeck(s, owner) {
   for (const [v, q] of Object.entries(DECK_COMPOSITION.atk)) for (let i = 0; i < q; i++) mk('atk', +v);
   for (const [v, q] of Object.entries(DECK_COMPOSITION.def)) for (let i = 0; i < q; i++) mk('def', +v);
   for (let i = 0; i < DECK_COMPOSITION.mare; i++) mk('mare', 0);
+  for (let i = 0; i < (DECK_COMPOSITION.saque || 0); i++) mk('saque', 0);
   return shuffle(s, deck);
 }
 
@@ -71,6 +74,8 @@ export function newGame({ names = ['Jogador 1', 'Jogador 2'], starter = 0, seed 
     actionsLeft: 0,
     drawsLeft: 0,
     acted: false,
+    storedThisTurn: false,
+    drawCtx: 'turn',
     mare: null,
     steal: null,
     winner: null,
@@ -108,6 +113,8 @@ function startTurn(s, ev) {
   if (p.bonus) ev.push({ t: 'bonusStart', p: s.current });
   p.bonus = false;
   s.acted = false;
+  s.storedThisTurn = false;
+  s.drawCtx = 'turn';
   s.drawsLeft = isUp(p, 'porto') ? 2 : 1;
   ev.push({ t: 'turn', p: s.current, turn: s.turn, actions: s.actionsLeft, draws: s.drawsLeft });
   continueDraw(s, ev);
@@ -115,6 +122,7 @@ function startTurn(s, ev) {
 
 function continueDraw(s, ev) {
   const p = s.players[s.current];
+  s.phase = 'drawing';
   while (s.drawsLeft > 0) {
     s.drawsLeft--;
     if (!p.deck.length) {
@@ -128,10 +136,37 @@ function continueDraw(s, ev) {
       if (s.phase === 'mare') return; // espera as escolhas
       continue;
     }
+    if (c.kind === 'saque') {
+      ev.push({ t: 'saqueReveal', p: s.current, card: c, source: 'draw' });
+      startSaque(s, 'draw', c, ev);
+      if (s.phase === 'steal') return; // espera a escolha da carta
+      continue;
+    }
     p.hand.push(c);
     ev.push({ t: 'draw', p: s.current, card: c });
   }
+  if (s.drawCtx === 'action') {
+    // a compra foi a ação "Comprar carta": encerra a ação
+    s.drawCtx = 'turn';
+    s.phase = 'resolving';
+    afterAction(s, ev);
+    return;
+  }
   s.phase = 'action';
+}
+
+// Saque: quem compra (ou usa) pega 1 carta da mão do adversário, sem ver
+function startSaque(s, after, card, ev) {
+  const to = s.current;
+  const from = 1 - to;
+  s.players[to].deck.push(card); // o Saque vai para o fundo do baralho
+  if (!s.players[from].hand.length) {
+    ev.push({ t: 'saqueEmpty', p: to });
+    return;
+  }
+  shuffle(s, s.players[from].hand); // sem ver
+  s.steal = { from, to, after, source: 'saque' };
+  s.phase = 'steal';
 }
 
 function startMare(s, source, card, ev) {
@@ -171,7 +206,7 @@ export function legalActions(s) {
   const me = s.players[s.current];
   const op = s.players[1 - s.current];
   const out = [];
-  if (!s.acted && me.bases.torre.stored) out.push({ type: 'retrieve' });
+  if (!s.acted && !s.storedThisTurn && me.bases.torre.stored) out.push({ type: 'retrieve' });
   const seen = new Set();
   for (const c of me.hand) {
     const key = c.kind + c.v;
@@ -183,10 +218,12 @@ export function legalActions(s) {
       for (const b of BASES) if (isUp(op, b)) out.push({ type: 'attack', cardId: c.id, base: b });
     } else if (c.kind === 'mare') {
       out.push({ type: 'mare', cardId: c.id });
+    } else if (c.kind === 'saque') {
+      out.push({ type: 'saque', cardId: c.id });
     }
     if (isUp(me, 'torre') && !me.bases.torre.stored) out.push({ type: 'store', cardId: c.id });
   }
-  if (!out.some((a) => a.type !== 'retrieve')) out.push({ type: 'pass' });
+  out.push({ type: 'draw' }); // "Comprar carta": sempre disponível
   return out;
 }
 
@@ -196,12 +233,13 @@ export function isLegal(s, a) {
   const op = s.players[1 - s.current];
   const card = a.cardId ? me.hand.find((c) => c.id === a.cardId) : null;
   switch (a.type) {
-    case 'retrieve': return !s.acted && !!me.bases.torre.stored;
+    case 'retrieve': return !s.acted && !s.storedThisTurn && !!me.bases.torre.stored;
     case 'defend': return !!card && card.kind === 'def' && isUp(me, a.base) && !me.bases[a.base].def;
     case 'attack': return !!card && card.kind === 'atk' && isUp(op, a.base);
     case 'store': return !!card && isUp(me, 'torre') && !me.bases.torre.stored;
     case 'mare': return !!card && card.kind === 'mare';
-    case 'pass': return legalActions(s).some((x) => x.type === 'pass');
+    case 'saque': return !!card && card.kind === 'saque';
+    case 'draw': return true;
   }
   return false;
 }
@@ -227,10 +265,12 @@ export function act(s, a) {
       break;
     }
     case 'store': {
+      // guardar é grátis e a carta fica na Torre o tempo que o dono quiser
       const c = takeFromHand(me, a.cardId);
       me.bases.torre.stored = c;
+      s.storedThisTurn = true;
       ev.push({ t: 'store', p: cur, card: c });
-      break;
+      return ev;
     }
     case 'mare': {
       const c = takeFromHand(me, a.cardId);
@@ -239,9 +279,21 @@ export function act(s, a) {
       if (s.phase === 'mare') return ev;
       break;
     }
-    case 'pass':
-      ev.push({ t: 'pass', p: cur });
+    case 'saque': {
+      const c = takeFromHand(me, a.cardId);
+      ev.push({ t: 'saqueReveal', p: cur, card: c, source: 'action' });
+      startSaque(s, 'action', c, ev);
+      if (s.phase === 'steal') return ev;
       break;
+    }
+    case 'draw': {
+      // "Comprar carta": compra 1 e encerra a ação (Maré e Saque comprados assim também valem)
+      ev.push({ t: 'drawAction', p: cur });
+      s.drawCtx = 'action';
+      s.drawsLeft = 1;
+      continueDraw(s, ev);
+      return ev;
+    }
     case 'attack': {
       const atk = takeFromHand(me, a.cardId);
       const slot = op.bases[a.base];
@@ -276,7 +328,7 @@ export function act(s, a) {
       }
       if (fell && a.base === 'torre' && op.hand.length > 0) {
         shuffle(s, op.hand); // o atacante pega sem ver
-        s.steal = { from: 1 - cur, to: cur };
+        s.steal = { from: 1 - cur, to: cur, after: 'action', source: 'torre' };
         s.phase = 'steal';
         return ev;
       }
@@ -329,14 +381,16 @@ export function mareGive(s, p, cardId) {
 
 export function stealPick(s, index) {
   if (s.phase !== 'steal') throw new Error('não há roubo pendente');
-  const { from, to } = s.steal;
+  const { from, to, after, source } = s.steal;
   const fromP = s.players[from];
   const i = Math.max(0, Math.min(fromP.hand.length - 1, index | 0));
   const c = fromP.hand.splice(i, 1)[0];
   s.players[to].hand.push(c);
   s.steal = null;
-  const ev = [{ t: 'steal', from, to, card: c }];
-  afterAction(s, ev);
+  s.phase = 'resolving';
+  const ev = [{ t: 'steal', from, to, card: c, source: source || 'torre' }];
+  if (after === 'draw') continueDraw(s, ev);
+  else afterAction(s, ev);
   return ev;
 }
 

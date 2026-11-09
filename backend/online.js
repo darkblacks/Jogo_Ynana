@@ -42,7 +42,7 @@ export function perspective(s, seat) {
           gives: [s.mare.gives[seat], s.mare.gives[1 - seat] ? 'x' : null],
         }
       : null,
-    steal: s.steal ? { from: rot(s.steal.from), to: rot(s.steal.to) } : null,
+    steal: s.steal ? { from: rot(s.steal.from), to: rot(s.steal.to), source: s.steal.source } : null,
     winner: rot(s.winner),
     endReason: s.endReason,
     seed: 0,

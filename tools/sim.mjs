@@ -1,6 +1,8 @@
 // Simula muitas partidas IA x IA para validar o motor e o equilíbrio da IA.
 import { playHeadless } from '../frontend/js/headless.js';
-import { BASES } from '../frontend/js/engine.js';
+import { BASES, DECK_COMPOSITION } from '../frontend/js/engine.js';
+const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+const DECK_SIZE = sum(DECK_COMPOSITION.atk) + sum(DECK_COMPOSITION.def) + DECK_COMPOSITION.mare + (DECK_COMPOSITION.saque || 0);
 
 const N = +(process.argv[2] || 400);
 const lv = (process.argv[3] || 'facil,medio,dificil').split(',');
@@ -18,7 +20,7 @@ for (const a of lv) for (const b of lv) {
       for (const x of BASES) if (p.bases[x].def) total++;
       if (p.bases.torre.stored) total++;
     }
-    if (total !== 56) { ok = false; console.error('cartas perdidas!', total); }
+    if (total !== 2 * DECK_SIZE) { ok = false; console.error('cartas perdidas!', total); }
     if (r.winner === 0) wins++;
     turns += r.turns;
     if (r.reason === 'limit') limit++;

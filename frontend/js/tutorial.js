@@ -6,12 +6,13 @@
 //   { say, hl }                     o Roku explica; o jogador clica em "Continuar"
 //   { expect, say, hl }             o jogador precisa fazer esta jogada
 //   { roku }                        o Roku faz esta jogada
-//   { steal, say }                  o jogador escolhe uma carta da mão do Roku (Torre caiu)
+//   { steal }                       o jogador escolhe uma carta da mão do Roku (Torre caiu)
+//   { rokuSteal }                   o Roku pega uma carta da mão do jogador (Saque)
 //   { mare, say }                   Maré: o jogador escolhe a carta que entrega
 //   { end }                         fim
 //
 // hl (destaques): 'opp-bases', 'my-bases', 'opp-base:torre', 'my-base:forte', 'opp-def:forte',
-//   'my-def:forte', 'my-stored', 'hand', 'hand:atk3', 'deck', 'hud-opp', 'btn:Guardar', 'btn:Pegar'
+//   'my-def:forte', 'my-stored', 'hand', 'hand:atk3', 'deck', 'hud-opp', 'btn:Guardar', 'btn:Pegar', 'btn:Comprar'
 
 const C = (kind, v) => ({ kind, v });
 
@@ -24,7 +25,10 @@ export function tutorialState(E, playerName) {
   me.hand = [['atk', 3], ['atk', 6], ['atk', 9], ['def', 6], ['def', 2], ['def', 3], ['def', 2]].map(mk(0));
   me.deck = [['def', 3], ['atk', 3], ['def', 2], ['def', 9], ['def', 2], ['atk', 3], ['def', 3], ...filler(14)].map(mk(0));
   roku.hand = [['def', 3], ['atk', 3], ['atk', 1], ['def', 6], ['def', 2]].map(mk(1));
-  roku.deck = [['def', 2], ['atk', 1], ['def', 2], ['def', 3], ['mare', 0], ['def', 2], ['def', 2], ...filler(14)].map(mk(1));
+  roku.deck = [['def', 2], ['atk', 1], ['def', 2], ['def', 3], ['mare', 0], ['def', 2], ['saque', 0], ...filler(14)].map(mk(1));
+  // estado limpo: começo do turno 1 do jogador, sem nada pendente do sorteio inicial
+  Object.assign(s, { current: 0, starter: 0, turn: 1, phase: 'action', actionsLeft: 1, drawsLeft: 0, acted: false, storedThisTurn: false, drawCtx: 'turn', mare: null, steal: null, winner: null });
+  for (const p of s.players) p.bonus = false;
   s.initialEvents = [];
   return s;
 }
@@ -34,8 +38,8 @@ export const TUTORIAL = [
   { say: 'O objetivo é um só: derrubar as três bases do adversário — <b>Forte</b>, <b>Torre</b> e <b>Porto</b>. As minhas estão lá em cima; as suas, aqui embaixo.', hl: ['opp-bases', 'my-bases'] },
   { say: 'A <b>Torre</b> e o <b>Porto</b> caem com 1 golpe. O <b>Forte</b> aguenta 2: no primeiro fica danificado, no segundo cai. Base que cai não volta.', hl: ['my-base:forte'] },
   { say: 'Cada base tem um poder. Com o <b>Porto</b> de pé, você compra <b>2 cartas</b> por turno (sem ele, só 1). A <b>Torre</b> guarda 1 carta escondida, fora da sua mão.', hl: ['my-base:porto', 'my-base:torre'] },
-  { say: 'Essas são as suas cartas. <b style="color:#a3211e">Vermelhas atacam</b>: Espada 1, Lança 3, Ataque 6 e Canhão 9. <b style="color:#1d2f5e">Azuis defendem</b>: Escudo 2, 3, 6 e 9. Tem também a <b>Maré</b>, mas essa eu mostro depois.', hl: ['hand'] },
-  { say: 'Todo turno tem duas etapas: primeiro você <b>compra</b> (você já comprou as 2 deste turno), depois faz <b>UMA ação</b>: atacar, defender ou guardar uma carta na Torre.', hl: ['hand', 'deck'] },
+  { say: 'Essas são as suas cartas. <b style="color:#a3211e">Vermelhas atacam</b>: Espada 1, Lança 3, Ataque 6 e Canhão 9. <b style="color:#1d2f5e">Azuis defendem</b>: Escudo 2, 3, 6 e 9. E tem duas especiais, a <b>Maré</b> e o <b>Saque</b> — essas eu mostro depois.', hl: ['hand'] },
+  { say: 'Todo turno tem duas etapas: primeiro você <b>compra</b> (você já comprou as 2 deste turno), depois faz <b>UMA ação</b>: atacar, defender ou comprar mais uma carta. Guardar carta na Torre é grátis, não conta como ação.', hl: ['hand', 'deck'] },
 
   { expect: { type: 'attack', kind: 'atk', v: 3, base: 'torre' }, say: 'Minha Torre está <b>sem defesa</b>. Clique na <b>Lança (3)</b> e depois na <b>minha Torre</b>, lá em cima.', hl: ['hand:atk3', 'opp-base:torre'] },
   { say: 'Base sem defesa: o ataque acerta direto. E a Torre cai com 1 golpe! Quando você derruba a Torre de alguém, pega <b>1 carta da mão</b> dessa pessoa — sem ver. A carta que estivesse guardada nela volta para o baralho do dono.' },
@@ -53,7 +57,9 @@ export const TUTORIAL = [
 
   { expect: { type: 'attack', kind: 'atk', v: 6, base: 'forte' }, say: 'Primeira ação: meu Forte tem uma defesa escondida. Arrisca o <b>Ataque (6)</b> nele.', hl: ['hand:atk6', 'opp-base:forte'] },
   { say: 'Atravessou! Meu escudo era 3. O Forte ficou <b>danificado</b> — e a partir de agora qualquer defesa nele fica <b>visível</b> para você.', hl: ['opp-base:forte'] },
-  { expect: { type: 'store', kind: 'atk', v: 9 }, say: 'Segunda ação: <b>guarde o Canhão (9) na sua Torre</b>. Clique no Canhão e depois em "Guardar na Torre". Guardar é um jeito de usar a ação sem gastar carta: no começo do seu próximo turno você pega de volta de graça. Só cuidado: se a Torre cair, a carta guardada volta pro baralho.', hl: ['hand:atk9', 'btn:Guardar', 'my-stored'] },
+  { expect: { type: 'store', kind: 'atk', v: 9 }, say: 'Agora <b>guarde o Canhão (9) na sua Torre</b>: clique no Canhão e depois em "Guardar na Torre". Guardar é <b>grátis</b> — não gasta ação — e a carta fica lá o tempo que você quiser, protegida de roubo.', hl: ['hand:atk9', 'btn:Guardar', 'my-stored'] },
+  { say: 'Viu? A carta foi pra Torre e você ainda tem a sua segunda ação.', hl: ['my-stored'] },
+  { expect: { type: 'draw' }, say: 'Quando não quiser (ou não puder) atacar nem defender, use <b>Comprar carta</b>: você pega 1 carta do baralho e passa a vez. Esse botão está sempre ali. Clique nele agora.', hl: ['btn:Comprar'] },
 
   { say: 'Agora é a minha vez… e olha o que eu comprei: uma <b>Maré</b>! Quando alguém compra Maré, ela é revelada na hora e <b>cada jogador entrega 1 carta da própria mão ao outro</b>. Depois ela volta para o fundo do baralho.' },
   { mare: { give: C('atk', 1) } },
@@ -62,12 +68,14 @@ export const TUTORIAL = [
   { roku: { type: 'defend', kind: 'def', v: 6, base: 'forte' } },
   { say: 'Pus um Escudo 6 no meu Forte. Como ele está danificado, a defesa fica <b>aberta</b>: você vê o valor. Guarda isso na cabeça.', hl: ['opp-def:forte'] },
   { say: 'Sua vez. Reparou que o escudo do seu Forte sumiu? Completou os 2 turnos e voltou para o baralho.', hl: ['my-base:forte'] },
-  { expect: { type: 'retrieve' }, say: 'Pegar a carta da Torre de volta é <b>grátis</b>, mas só no começo do turno, antes da ação. Clique na <b>sua Torre</b> (o selo "Carta guardada" brilhando) ou no botão.', hl: ['my-stored', 'btn:Pegar'] },
   { expect: { type: 'attack', kind: 'atk', v: 1, base: 'porto' }, say: 'Meu <b>Porto</b> está sem defesa. Contra base aberta, qualquer ataque serve — use a <b>Espada (1)</b> e poupe as cartas fortes.', hl: ['hand:atk1', 'opp-base:porto'] },
-  { say: 'Porto caído: agora eu só compro <b>1 carta</b> por turno. Me deixou mais pobre, hein?' },
+  { say: 'Porto caído: agora eu só compro <b>1 carta</b> por turno… e olha a carta que eu comprei: um <b>Saque</b>! Funciona como a Maré, só que em vez de trocar, quem compra <b>pega 1 carta da mão do outro</b>, sem ver.' },
+  { rokuSteal: true },
+  { say: 'Peguei uma carta sua. Mas o seu <b>Canhão</b> estava guardado na Torre — lá o Saque não alcança. É pra isso que serve guardar!', hl: ['my-stored'] },
 
   { roku: { type: 'attack', kind: 'atk', v: 1, base: 'porto' } },
   { say: 'Vingança! Seu Porto também caiu, então você também passa a comprar só 1. Por isso vale a pena proteger o Porto.', hl: ['my-base:porto'] },
+  { expect: { type: 'retrieve' }, say: 'Hora de pegar o Canhão de volta. Pegar da Torre também é <b>grátis</b>, mas só no começo do turno, antes da ação. Clique na <b>sua Torre</b> (o selo "Carta guardada" brilhando) ou no botão.', hl: ['my-stored', 'btn:Pegar'] },
   { expect: { type: 'attack', kind: 'atk', v: 9, base: 'forte' }, say: 'Última base: meu Forte danificado, com Escudo 6 visível. O <b>Canhão (9)</b> é maior que 6. Manda ver!', hl: ['hand:atk9', 'opp-base:forte'] },
   { end: true },
 ];

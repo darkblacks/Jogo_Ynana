@@ -6,6 +6,8 @@
 // power      ordem de força no torneio (maior = mais forte)
 // ai.base    nível de partida: 'facil' | 'medio' | 'dificil' | 'lendario'
 // ai.search  quantas simulações por jogada (0 = só heurística). Mais = mais forte e mais lento.
+// ai.width   quantas jogadas candidatas a busca compara (padrão 7)
+// ai.rollout como ela imagina o resto da partida nas simulações (padrão: nível médio)
 // ai.style   personalidade em jogo (1 = neutro): atk, def, risk, tower, mare, thief
 //
 // Situações das falas:
@@ -28,7 +30,7 @@ export const CHARACTERS = [
     bust: 'assets/chars/ynana-busto.webp',
     color: '#8e1b1b',
     styleLabel: 'Estrategista',
-    ai: { base: 'lendario', search: 80, style: { tower: 1.05, mare: 1.05 } },
+    ai: { base: 'lendario', search: 48, width: 10, rollout: { base: 'dificil', search: 0, noise: 0.35, randomChance: 0 }, style: { tower: 1.05, mare: 1.05 } },
     boss: 1, // chefe final do torneio
     lines: {
       intro: ['O mar sempre foi minha casa. Este tabuleiro também.', 'Método antes de impulso. Vamos ver o seu.', 'Acho que desta vez quem dá as cartas sou eu.'],
@@ -57,7 +59,7 @@ export const CHARACTERS = [
     bust: 'assets/chars/rufus-busto.webp',
     color: '#1d2f5e',
     styleLabel: 'Paciente',
-    ai: { base: 'dificil', search: 24, style: { def: 1.15, risk: 0.85 } },
+    ai: { base: 'dificil', search: 16, style: { def: 1.15, risk: 0.85 } },
     boss: 2, // penúltimo desafio (semifinal)
     lines: {
       intro: ['Chá e biscoitos resolvem quase tudo, sabia? O resto se resolve aqui.', 'Não sou homem de mansões. Mas de cartas, sou.'],
@@ -86,7 +88,7 @@ export const CHARACTERS = [
     bust: 'assets/chars/hela-busto.webp',
     color: '#b5501a',
     styleLabel: 'Impulsiva',
-    ai: { base: 'dificil', search: 4, noise: 1.0, randomChance: 0.06, style: { atk: 1.45, risk: 1.7, def: 0.7, tower: 0.7 } },
+    ai: { base: 'dificil', search: 2, noise: 1.2, randomChance: 0.08, style: { atk: 1.45, risk: 1.7, def: 0.7, tower: 0.7 } },
     lines: {
       intro: ['Eu jogava pedra nos tubarões pra eles chegarem perto. Chega mais.', 'Primeiro eu ataco. Depois eu penso.'],
       start: ['Bora! Tô com pressa!', 'Vai, vai, vai!'],
@@ -170,7 +172,7 @@ export const CHARACTERS = [
     bust: 'assets/chars/seraphine-busto.webp',
     color: '#9a7420',
     styleLabel: 'Elegante',
-    ai: { base: 'dificil', search: 2, noise: 1.0, style: { def: 1.15, mare: 1.4, tower: 1.2, risk: 0.9 } },
+    ai: { base: 'dificil', search: 1, noise: 1.1, style: { def: 1.15, mare: 1.4, tower: 1.2, risk: 0.9 } },
     lines: {
       intro: ['Sente-se. Prometo ser gentil. No começo.', 'A Andorinha nunca chega atrasada. Eu também não.'],
       start: ['Vamos ver do que você é feito.', 'Com elegância, por favor.'],
@@ -198,7 +200,7 @@ export const CHARACTERS = [
     bust: 'assets/chars/roku-busto.webp',
     color: '#2b3a55',
     styleLabel: 'Malandro',
-    ai: { base: 'medio', search: 0, noise: 1.3, randomChance: 0.08, style: { atk: 1.1, mare: 1.2 } },
+    ai: { base: 'facil', search: 0, style: { atk: 1.1, mare: 1.2 } },
     lines: {
       intro: ['Ué, já quer jogar comigo? Gostei.', 'Eu te ensinei tudo… quase tudo.'],
       start: ['Lembra do que eu te ensinei, hein?', 'Bora, sem medo.'],
