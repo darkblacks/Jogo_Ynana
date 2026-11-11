@@ -17,13 +17,13 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { Lobby } from './online.js';
+import { Lobby, GRACE_MS, graceLeft } from './online.js';
 import { pendingDeciders } from '../frontend/js/engine.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'frontend');
 const PORT = +process.env.PORT || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const ALLOWED = (process.env.ALLOWED_ORIGINS || 'https://gachaqui.netlify.app')
   .split(',').map((x) => x.trim().replace(/\/$/, '')).filter(Boolean);
 
@@ -118,8 +118,39 @@ function broadcast(room, events, opts = {}) {
 function presence(room) {
   room.seats.forEach((seat, i) => {
     const opp = room.seats[1 - i];
-    if (seat && seat.ws) send(seat.ws, { t: 'presence', opponentOnline: !!(opp && opp.ws), opponentName: opp ? opp.name : null });
+    if (seat && seat.ws) send(seat.ws, { t: 'presence', opponentOnline: !!(opp && opp.ws), opponentName: opp ? opp.name : null, opponentGraceMs: graceLeft(opp) });
   });
+}
+
+// Alguém saiu ou caiu: a sala espera GRACE_MS. Se a pessoa não voltar, a sala fecha
+// (e, com partida em andamento, quem ficou vence por abandono).
+function markGone(room, i) {
+  const seat = room.seats[i];
+  if (!seat) return;
+  seat.ws = null;
+  seat.goneAt = Date.now();
+  room.lastActive = Date.now();
+  clearTimeout(seat.timer);
+  seat.timer = setTimeout(() => expire(room, i), GRACE_MS);
+  presence(room);
+}
+
+function expire(room, i) {
+  const seat = room.seats[i];
+  if (!seat || seat.ws || lobby.rooms.get(room.code) !== room) return; // voltou ou a sala já fechou
+  const j = 1 - i;
+  const other = room.seats[j];
+  if (other && other.ws) {
+    const events = lobby.forfeit(room, i, 'abandon');
+    if (events.length) send(other.ws, lobby.updateFor(room, j, events));
+    send(other.ws, { t: 'closed', reason: events.length ? 'abandon' : 'left', name: seat.name, score: [room.score[j], room.score[i]] });
+  }
+  closeRoom(room);
+}
+
+function closeRoom(room) {
+  for (const seat of room.seats) if (seat) clearTimeout(seat.timer);
+  lobby.rooms.delete(room.code);
 }
 
 wss.on('connection', (ws) => {
@@ -128,9 +159,12 @@ wss.on('connection', (ws) => {
   let room = null, seat = -1;
 
   const attach = (r, s) => {
-    const old = r.seats[s].ws;
+    const st = r.seats[s];
+    const old = st.ws;
     if (old && old !== ws) { send(old, { t: 'error', msg: 'Você abriu o jogo em outra aba.', fatal: true }); old.close(); }
-    room = r; seat = s; r.seats[s].ws = ws; r.lastActive = Date.now();
+    clearTimeout(st.timer);
+    st.goneAt = null;
+    room = r; seat = s; st.ws = ws; r.lastActive = Date.now();
   };
 
   ws.on('message', (data) => {
@@ -146,9 +180,15 @@ wss.on('connection', (ws) => {
         }
         case 'join': {
           const r = lobby.join(msg.code, msg.name);
-          attach(r.room, 1);
-          send(ws, { t: 'joined', code: room.code, token: room.seats[1].token });
-          broadcast(room, room.lastEvents, { force: true });
+          attach(r.room, r.seat);
+          send(ws, { t: 'joined', code: room.code, token: room.seats[r.seat].token });
+          if (!r.takeover) broadcast(room, room.lastEvents, { force: true });
+          else {
+            // voltou para a sala pelo código: recebe o estado atual
+            if (room.state) send(ws, lobby.updateFor(room, seat, [], { sync: true }));
+            else send(ws, { t: 'lobby', code: room.code, token: room.seats[seat].token, names: [room.seats[0].name, null] });
+            presence(room);
+          }
           break;
         }
         case 'rejoin': {
@@ -166,8 +206,16 @@ wss.on('connection', (ws) => {
           else broadcast(room, r.events, { actor: seat, force: r.newGame });
           break;
         }
+        case 'surrender': {
+          if (!room) throw new Error('Entre numa sala primeiro.');
+          const events = lobby.forfeit(room, seat, 'surrender');
+          if (!events.length) throw new Error('Não há partida em andamento.');
+          broadcast(room, events, { force: true });
+          break;
+        }
         case 'leave':
-          if (room) { room.seats[seat].ws = null; presence(room); room = null; }
+          if (room && room.seats[seat] && room.seats[seat].ws === ws) markGone(room, seat);
+          room = null;
           break;
       }
     } catch (e) {
@@ -176,11 +224,7 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    if (room && room.seats[seat] && room.seats[seat].ws === ws) {
-      room.seats[seat].ws = null;
-      room.lastActive = Date.now();
-      presence(room);
-    }
+    if (room && room.seats[seat] && room.seats[seat].ws === ws) markGone(room, seat);
   });
 });
 

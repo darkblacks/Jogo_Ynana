@@ -354,23 +354,29 @@ $('#btn-log').onclick = () => $('#log').classList.toggle('open');
 $('#btn-quit').onclick = () => {
   if (G.mode === 'tutorial') { tutQuit(); return; }
   if (G.mode === 'online') {
-    showModal(`<h2>Partida online</h2><p>Sala <b>${esc(G.code)}</b>. Se você sair, pode voltar depois pelo mesmo link enquanto a sala existir.</p>
+    const live = G.state && G.state.phase !== 'over';
+    showModal(`<h2>Partida online</h2><p>Sala <b>${esc(G.code)}</b>. Se você sair, a sala espera você por 30 segundos: dá para voltar pelo mesmo link ou digitando o código. Depois disso, ${esc(G.names[AI])} vence por abandono e a sala fecha.</p>
       <div class="row center">
         <button class="btn ghost" id="q-rules">Regras</button>
         <button class="btn ghost" id="q-menu">Sair da sala</button>
+        ${live ? '<button class="btn ghost danger" id="q-surr">Render-se</button>' : ''}
         <button class="btn primary" id="q-back">Continuar</button></div>`);
     $('#q-back').onclick = hideModal;
+    if (live) $('#q-surr').onclick = () => confirmSurrender(() => sendNet({ t: 'surrender' }));
     $('#q-rules').onclick = () => { hideModal(); go('rules'); };
     $('#q-menu').onclick = () => { hideModal(); leaveOnline(); go('menu'); };
     return;
   }
+  const live = G.state && G.state.phase !== 'over';
   showModal(`<h2>Pausa</h2><p>A partida fica salva neste navegador.</p>
     <div class="row center">
       <button class="btn ghost" id="q-rules">Regras</button>
       <button class="btn ghost" id="q-menu">Sair para o menu</button>
       ${G.mode === 'tournament' ? '<button class="btn ghost" id="q-br">Ver chave</button>' : ''}
+      ${live ? '<button class="btn ghost danger" id="q-surr">Render-se</button>' : ''}
       <button class="btn primary" id="q-back">Continuar</button></div>`);
   $('#q-back').onclick = hideModal;
+  if (live) $('#q-surr').onclick = () => confirmSurrender(surrenderLocal);
   $('#q-rules').onclick = () => { hideModal(); go('rules'); };
   $('#q-menu').onclick = () => { hideModal(); runToken++; go('menu'); };
   const br = $('#q-br');
@@ -378,6 +384,31 @@ $('#btn-quit').onclick = () => {
 };
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms * speed));
+
+function confirmSurrender(doIt) {
+  const extra = G.mode === 'tournament' ? ' No torneio, conta como derrota neste jogo da série.' : '';
+  showModal(`<h2>Render-se?</h2><p>${esc(G.names[AI])} vence esta partida.${extra}</p>
+    <div class="row center"><button class="btn ghost" id="sr-no">Continuar jogando</button><button class="btn primary" id="sr-yes">Render-se</button></div>`);
+  $('#sr-no').onclick = hideModal;
+  $('#sr-yes').onclick = () => { hideModal(); doIt(); };
+}
+
+async function surrenderLocal() {
+  if (!G || G.state.phase === 'over') return;
+  runToken++; // para o turno em andamento
+  awaiting = null; resolver = null; promptCancel = null; selected = null;
+  const ev = E.forfeit(G.state, HUMAN, 'surrender');
+  logLine('Você se rendeu.', 'big');
+  await play(ev);
+  finishGame();
+}
+
+const endReasonText = (s, oppName) => {
+  if (s.endReason === 'surrender') return s.winner === HUMAN ? `${esc(oppName)} se rendeu.` : 'Você se rendeu.';
+  if (s.endReason === 'abandon') return s.winner === HUMAN ? `${esc(oppName)} saiu e não voltou a tempo.` : 'Você saiu e não voltou a tempo.';
+  if (s.endReason === 'limit') return 'Limite de turnos atingido.';
+  return '';
+};
 
 function saveGame() {
   if (G.mode === 'quick' || G.mode === 'tournament') {
@@ -990,7 +1021,7 @@ function finishGame() {
   setTimeout(() => {
     showModal(`<h2 class="big-title">${won ? 'Vitória!' : 'Derrota'}</h2>
       ${quote}
-      <p>${won ? `Você derrubou as três bases de ${esc(G.names[AI])}.` : `${esc(G.names[AI])} derrubou as suas três bases.`}${s.endReason === 'limit' ? ' (limite de turnos atingido)' : ''}</p>
+      <p>${endReasonText(s, G.names[AI]) || (won ? `Você derrubou as três bases de ${esc(G.names[AI])}.` : `${esc(G.names[AI])} derrubou as suas três bases.`)}</p>
       <p>Seu histórico em partidas rápidas: ${SAVE.stats.w} vitória(s), ${SAVE.stats.l} derrota(s).</p>
       <div class="row center"><button class="btn ghost" id="m-menu">Menu</button><button class="btn primary" id="m-again">Jogar de novo</button></div>`);
     $('#m-menu').onclick = () => { hideModal(); go('menu'); };
@@ -1281,6 +1312,7 @@ async function resumeOnline(r) {
 }
 
 function leaveOnline() {
+  graceBanner(0);
   net.wantOpen = false;
   if (net.ws) { sendNet({ t: 'leave' }); net.ws.close(); }
   net.ws = null; net.room = null; net.v = -1;
@@ -1312,10 +1344,17 @@ function onMessage(msg) {
       if (G && G.mode === 'online') {
         const was = G.oppOnline;
         G.oppOnline = msg.opponentOnline;
-        if (was && !msg.opponentOnline) toast(`${G.names[AI]} desconectou. Aguardando voltar…`, 'red');
         if (was === false && msg.opponentOnline) toast(`${G.names[AI]} voltou!`, 'sea');
+        graceBanner(msg.opponentOnline ? 0 : msg.opponentGraceMs);
         render();
       }
+      return;
+    case 'closed':
+      if (G && G.mode === 'online') G.closedInfo = msg;
+      graceBanner(0);
+      net.wantOpen = false;
+      saveRoom(null);
+      net.queue = net.queue.then(() => new Promise((r) => setTimeout(r, 900))).then(() => showClosed(msg));
       return;
     case 'rematch':
       if (G) G.rematch = msg.rematch;
@@ -1336,6 +1375,7 @@ function onMessage(msg) {
 
 async function handleUpdate(msg) {
   net.v = msg.v;
+  graceBanner(msg.opponentOnline ? 0 : msg.opponentGraceMs || 0);
   const isNewGame = !G || G.mode !== 'online' || G.game !== msg.game || msg.sync;
   if (isNewGame) {
     hideModal();
@@ -1367,12 +1407,45 @@ async function handleUpdate(msg) {
   }
 }
 
+// Aviso no topo: "Fulano caiu — a sala fecha em 30s"
+let graceTimer = null;
+function graceBanner(ms) {
+  let el = $('#net-banner');
+  if (!el) { el = h('div', 'net-banner'); el.id = 'net-banner'; document.body.append(el); }
+  clearInterval(graceTimer);
+  if (!ms || !G || G.mode !== 'online') { el.classList.remove('show'); return; }
+  const end = Date.now() + ms;
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+    el.innerHTML = `<b>${esc(G.names[AI])}</b> caiu. Esperando voltar… <b>${left}s</b>`;
+    if (!left) clearInterval(graceTimer);
+  };
+  tick();
+  el.classList.add('show');
+  graceTimer = setInterval(tick, 500);
+}
+
+function showClosed(msg) {
+  if (net.ws) { try { net.ws.close(); } catch {} }
+  net.ws = null; net.room = null;
+  const name = esc(msg.name || 'O outro jogador');
+  const text = msg.reason === 'abandon'
+    ? `${name} saiu e não voltou em 30 segundos. <b>Você venceu por abandono.</b>`
+    : `${name} saiu da sala.`;
+  const score = msg.score ? `<p class="score-line">Você ${msg.score[0]} x ${msg.score[1]} ${name}</p>` : '';
+  showModal(`<h2>Sala fechada</h2><p>${text}</p>${score}
+    <div class="row center"><button class="btn ghost" id="cl-menu">Menu</button><button class="btn primary" id="cl-new">Criar nova sala</button></div>`);
+  $('#cl-menu').onclick = () => { hideModal(); G = null; go('menu'); };
+  $('#cl-new').onclick = () => { hideModal(); G = null; openOnlineScreen(); };
+}
+
 function onlineFinish() {
   const s = G.state;
   const won = s.winner === HUMAN;
   setTimeout(() => {
+    if (!G || G.closedInfo) return; // a sala fechou: outra janela cuida disso
     showModal(`<h2 class="big-title">${won ? 'Vitória!' : 'Derrota'}</h2>
-      <p>${won ? `Você derrubou as três bases de ${esc(G.names[AI])}.` : `${esc(G.names[AI])} derrubou as suas três bases.`}</p>
+      <p>${endReasonText(s, G.names[AI]) || (won ? `Você derrubou as três bases de ${esc(G.names[AI])}.` : `${esc(G.names[AI])} derrubou as suas três bases.`)}</p>
       <p class="score-line">Você ${G.score[0]} x ${G.score[1]} ${esc(G.names[AI])}</p>
       <p id="rm-status"></p>
       <div class="row center"><button class="btn ghost" id="m-leave">Sair da sala</button><button class="btn primary" id="m-rematch">Revanche</button></div>`);
@@ -1396,7 +1469,19 @@ function updateRematchModal() {
   if (!code) return;
   const saved = loadRoom();
   if (saved && saved.code === code.toUpperCase()) resumeOnline(saved);
-  else openOnlineScreen(code.toUpperCase());
+  else {
+    openOnlineScreen(code.toUpperCase());
+    // já sabemos o nome: entra direto na sala
+    if (SAVE.playerName) $('#on-join').click();
+    else $('#on-name').focus();
+  }
 })();
+for (const id of ['#on-code', '#on-name']) {
+  $(id).addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    if ($('#on-code').value.trim().length >= 4) $('#on-join').click();
+    else if (id === '#on-name') $('#on-create').click();
+  });
+}
 
 refreshMenu();

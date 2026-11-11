@@ -439,3 +439,14 @@ export function viewFor(s, p) {
     stealCount: s.steal && s.steal.to === p ? s.players[s.steal.from].hand.length : 0,
   };
 }
+
+// Encerra a partida porque um jogador desistiu: 'surrender' (rendição) ou 'abandon' (saiu e não voltou)
+export function forfeit(s, loser, reason = 'surrender') {
+  if (s.phase === 'over') return [];
+  s.winner = 1 - loser;
+  s.endReason = reason;
+  s.phase = 'over';
+  s.mare = null;
+  s.steal = null;
+  return [{ t: 'win', p: s.winner, reason }];
+}

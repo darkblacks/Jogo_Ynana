@@ -1,7 +1,10 @@
 // Gachaqui online — salas e visão por jogador. O servidor guarda o estado verdadeiro;
 // cada jogador só recebe o que poderia ver na mesa (a mão e o baralho do outro viram cartas "escondidas").
 import { randomBytes } from 'node:crypto';
-import { newGame, act, mareGive, stealPick, pendingDeciders, BASES, defenseVisible } from '../frontend/js/engine.js';
+import { newGame, act, mareGive, stealPick, pendingDeciders, BASES, defenseVisible, forfeit } from '../frontend/js/engine.js';
+
+// Quanto tempo a sala espera alguém que caiu antes de fechar (padrão: 30 s)
+export const GRACE_MS = +process.env.GRACE_MS || 30000;
 
 const HIDDEN = (id) => ({ id, kind: 'hidden', v: 0 });
 
@@ -65,6 +68,11 @@ export function eventsFor(events, seat) {
   });
 }
 
+export function graceLeft(seat) {
+  if (!seat || seat.ws || !seat.goneAt) return 0;
+  return Math.max(0, GRACE_MS - (Date.now() - seat.goneAt));
+}
+
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function makeCode(rooms) {
   for (;;) {
@@ -97,13 +105,22 @@ export class Lobby {
     return { room, seat: 0 };
   }
 
+  // Entrar pelo código. Se a sala já tem dois jogadores mas um deles caiu,
+  // quem entra com o código ocupa o lugar de quem caiu (de preferência o de mesmo nome).
   join(code, name) {
-    const room = this.rooms.get(String(code || '').toUpperCase());
-    if (!room) throw new Error('Sala não encontrada. Confira o código.');
-    if (room.seats[1]) throw new Error('Essa sala já está cheia.');
-    room.seats[1] = { name: cleanName(name), token: token(), ws: null };
-    this.startGame(room);
-    return { room, seat: 1 };
+    const room = this.rooms.get(String(code || '').trim().toUpperCase());
+    if (!room) throw new Error('Sala não encontrada. Confira o código — a sala pode ter sido fechada.');
+    const nm = cleanName(name);
+    if (!room.seats[1]) {
+      room.seats[1] = { name: nm, token: token(), ws: null };
+      this.startGame(room);
+      return { room, seat: 1, takeover: false };
+    }
+    const gone = [0, 1].filter((i) => room.seats[i] && !room.seats[i].ws);
+    if (!gone.length) throw new Error('Essa sala já tem dois jogadores conectados.');
+    const same = gone.find((i) => room.seats[i].name.toLowerCase() === nm.toLowerCase());
+    const seat = same ?? gone[0];
+    return { room, seat, takeover: true };
   }
 
   rejoin(code, tok) {
@@ -148,6 +165,17 @@ export class Lobby {
     return { events };
   }
 
+  // Rendição (ou abandono): o outro vence a partida atual
+  forfeit(room, seat, reason = 'surrender') {
+    const s = room.state;
+    if (!s || s.phase === 'over') return [];
+    const events = forfeit(s, seat, reason);
+    room.score[s.winner]++;
+    room.v++;
+    room.lastActive = Date.now();
+    return events;
+  }
+
   // Mensagem de atualização para um assento
   updateFor(room, seat, events, extra = {}) {
     const opp = room.seats[1 - seat];
@@ -162,6 +190,7 @@ export class Lobby {
       score: [room.score[seat], room.score[1 - seat]],
       rematch: [room.rematch[seat], room.rematch[1 - seat]],
       opponentOnline: !!(opp && opp.ws),
+      opponentGraceMs: graceLeft(opp),
       ...extra,
     };
   }

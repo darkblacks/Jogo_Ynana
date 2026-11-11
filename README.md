@@ -28,6 +28,18 @@ No fim ele mostra o endereço do backend. As portas 80 e 443 precisam estar libe
 
 Quer que o Claude Code faça isso por você no servidor? Veja `deploy/INSTRUCOES_CLAUDE.md`.
 
+### Atualizar o backend com o pacote (zip)
+
+Do Windows (`cmd`), com o `gachaqui-patch.zip` em Downloads:
+
+```bash
+scp "%USERPROFILE%\Downloads\gachaqui-patch.zip" orvya:~/
+ssh orvya
+cd ~/gachaqui && python3 -m zipfile -e ~/gachaqui-patch.zip . && bash deploy/aplicar-patch.sh
+```
+
+Ou, sem zip: `cd ~/gachaqui && git pull && sudo systemctl restart gachaqui`.
+
 ### 2. Frontend no Netlify
 
 - **Pelo Git (recomendado):** *Add new site → Import an existing project* → este repositório. Branch: `claude/serene-goodall-ko7s49` (ou `main`, depois de juntar). **Base directory: `frontend`**. Build command e publish directory já vêm do `frontend/netlify.toml`. O endereço do backend já vem em `frontend/js/config.js` (`https://gachaqui.duckdns.org`). Para usar outro, crie a variável de ambiente `GACHAQUI_SERVER` no Netlify e faça *Trigger deploy*.
@@ -60,7 +72,7 @@ Testes (simula centenas de partidas IA x IA): `npm test` na raiz.
 - **Tutorial com o Roku:** uma partida guiada, passo a passo, em que o Roku ensina cada regra na hora em que ela acontece.
 - **Torneio · 8 jogadores:** quartas, semifinal e final contra 7 capitães da IA (melhor de 1, 3 ou 5). Funciona sem backend.
 - **Partida rápida:** um jogo contra a IA no nível escolhido. Funciona sem backend.
-- **Jogar com um amigo:** cria uma sala e gera um link. Placar, revanche e reconexão automática.
+- **Jogar com um amigo:** cria uma sala e gera um link. Placar, revanche e reconexão automática. Se alguém cair, a sala espera 30 s (dá para voltar pelo link ou pelo código); depois disso quem ficou vence por abandono e a sala fecha. Tem botão de render-se.
 
 ### Personagens
 
