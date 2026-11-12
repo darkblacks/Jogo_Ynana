@@ -43,7 +43,7 @@ function originAllowed(origin, host) {
     } catch { return false; }
   });
 }
-const PUBLIC = ['index.html', 'css', 'js', 'assets', 'fonts', 'manifest.webmanifest', 'sw.js'];
+const PUBLIC = ['index.html', 'css', 'js', 'assets', 'fonts', 'manifest.webmanifest', 'sw.js', 'baixar'];
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -54,6 +54,7 @@ const TYPES = {
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
   '.webmanifest': 'application/manifest+json',
+  '.svg': 'image/svg+xml',
 };
 
 const server = http.createServer(async (req, res) => {
@@ -80,10 +81,16 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '') || 'index.html';
-    const file = path.resolve(ROOT, rel);
+    let file = path.resolve(ROOT, rel);
     const top = path.relative(ROOT, file).split(path.sep)[0];
     if (!file.startsWith(ROOT + path.sep) || !PUBLIC.includes(top)) throw Object.assign(new Error(), { code: 'ENOENT' });
-    const st = await stat(file);
+    let st = await stat(file);
+    if (st.isDirectory()) {
+      // pasta: entrega o index.html dela (ex.: /baixar/)
+      if (!url.pathname.endsWith('/')) { res.writeHead(301, { Location: url.pathname + '/' + url.search }).end(); return; }
+      file = path.join(file, 'index.html');
+      st = await stat(file);
+    }
     if (!st.isFile()) throw Object.assign(new Error(), { code: 'ENOENT' });
     const ext = path.extname(file);
     res.writeHead(200, {

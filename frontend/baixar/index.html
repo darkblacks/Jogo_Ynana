@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Baixar Gachaqui para Android</title>
+  <meta name="description" content="Baixe o app do Gachaqui para Android e jogue com seus amigos — contra a IA, em torneio ou online com quem está no site.">
+  <meta name="theme-color" content="#12204a">
+  <meta property="og:title" content="Gachaqui — baixe o app para Android">
+  <meta property="og:description" content="Jogo de cartas de ataque e defesa. Jogue online com os amigos, no app ou no navegador.">
+  <meta property="og:image" content="https://gachaqui.netlify.app/assets/icons/icon-512.png">
+  <meta property="og:url" content="https://gachaqui.netlify.app/baixar/">
+  <link rel="icon" href="../assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <link rel="stylesheet" href="../fonts/fonts.css">
+  <style>
+    :root {
+      --parch: #f3e6c8; --parch-2: #e6d2a6; --ink: #2b1d12; --ink-soft: #5b4630;
+      --navy: #1d2f5e; --navy-2: #12204a; --crimson: #a3211e; --gold: #e2b85a; --gold-2: #b8862e;
+      --display: 'Cinzel', Georgia, serif; --deco: 'Cinzel Decorative', 'Cinzel', Georgia, serif; --body: 'Alegreya', Georgia, serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      font-family: var(--body); color: var(--parch); min-height: 100vh;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(255, 200, 120, .14), transparent 60%),
+        repeating-linear-gradient(92deg, rgba(0,0,0,.08) 0 3px, transparent 3px 11px),
+        linear-gradient(180deg, #3a2416, #24160d);
+      background-color: #24160d;
+      padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+    }
+    main { max-width: 860px; margin: 0 auto; }
+    .hero { text-align: center; }
+    .hero .logo { width: min(320px, 78vw); filter: drop-shadow(0 10px 22px rgba(0,0,0,.6)); }
+    h1 { font-family: var(--deco); font-size: clamp(1.7rem, 6vw, 2.6rem); margin: 6px 0 4px; color: var(--gold); text-shadow: 0 2px 0 rgba(0,0,0,.5); }
+    .tag { font-size: 1.15rem; margin: 0 auto 18px; max-width: 560px; opacity: .92; }
+    .cast { display: flex; justify-content: center; margin: 6px 0 22px; }
+    .cast img { width: clamp(46px, 13vw, 72px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; margin-left: -10px; background: #fff;
+      box-shadow: 0 0 0 3px var(--gold-2), 0 6px 14px rgba(0,0,0,.5); }
+    .cast img:first-child { margin-left: 0; }
+
+    .card {
+      background: radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.35), transparent 60%), linear-gradient(180deg, var(--parch), var(--parch-2));
+      color: var(--ink); border-radius: 18px; padding: 22px clamp(16px, 4vw, 30px); margin: 16px 0;
+      box-shadow: 0 18px 50px rgba(0,0,0,.55), inset 0 0 0 2px rgba(184,134,46,.6);
+    }
+    .card h2 { font-family: var(--display); color: var(--navy); margin: 0 0 10px; font-size: 1.35rem; }
+    .download { text-align: center; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 12px; text-decoration: none; cursor: pointer; border: 0;
+      font-family: var(--display); font-weight: 800; letter-spacing: .03em; color: #fff; border-radius: 14px;
+      padding: 16px 26px; font-size: 1.25rem; min-width: min(100%, 340px);
+      background: linear-gradient(180deg, #3e9a43, #23612a); box-shadow: inset 0 0 0 2px var(--gold), 0 6px 0 rgba(0,0,0,.35), 0 12px 26px rgba(0,0,0,.35);
+      transition: transform .08s, filter .15s;
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn:active { transform: translateY(3px); }
+    .btn svg { width: 30px; height: 30px; flex: none; }
+    .btn.alt { background: linear-gradient(180deg, #2b4382, var(--navy-2)); font-size: 1.05rem; padding: 12px 20px; min-width: 0; }
+    .meta { margin: 10px 0 0; color: var(--ink-soft); font-size: .95rem; min-height: 1.3em; }
+    .steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+    .steps li { counter-increment: s; display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: start; line-height: 1.45; }
+    .steps li::before {
+      content: counter(s); width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center;
+      font-family: var(--display); font-weight: 800; color: #fff; background: var(--crimson); box-shadow: inset 0 0 0 2px var(--gold);
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+    .feat { display: flex; gap: 10px; align-items: flex-start; line-height: 1.4; }
+    .feat b { display: block; font-family: var(--display); color: var(--navy); font-size: .98rem; }
+    .feat .ic { font-size: 1.5rem; line-height: 1; }
+    .qr { display: none; grid-template-columns: 150px 1fr; gap: 18px; align-items: center; }
+    .qr img { width: 150px; height: 150px; background: #fff; border-radius: 10px; padding: 6px; box-shadow: inset 0 0 0 2px var(--gold-2); }
+    @media (min-width: 760px) and (hover: hover) { .qr { display: grid; } }
+    .note { font-size: .92rem; color: var(--ink-soft); margin: 10px 0 0; }
+    .ios { display: none; }
+    .ios.show { display: block; }
+    .center { text-align: center; }
+    footer { text-align: center; opacity: .7; font-size: .9rem; margin-top: 22px; }
+    footer a { color: var(--gold); }
+  </style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <img class="logo" src="../assets/icons/logo.webp" alt="Gachaqui">
+    <h1>Gachaqui no seu celular</h1>
+    <p class="tag">Ataque, defenda e derrube as três bases do adversário. Jogue contra os personagens de <i>Os Contos de Ynana</i> ou online com os amigos — quem está no app joga com quem está no site.</p>
+    <div class="cast" aria-hidden="true">
+      <img src="../assets/chars/ynana.webp" alt=""><img src="../assets/chars/rufus.webp" alt=""><img src="../assets/chars/hela.webp" alt="">
+      <img src="../assets/chars/seraphine.webp" alt=""><img src="../assets/chars/almosafar.webp" alt=""><img src="../assets/chars/ibrahim.webp" alt=""><img src="../assets/chars/roku.webp" alt="">
+    </div>
+  </section>
+
+  <section class="card download" id="android">
+    <h2>App para Android</h2>
+    <a class="btn" id="dl" href="https://github.com/darkblacks/Jogo_Ynana/releases/latest/download/gachaqui.apk" download>
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18a.38.38 0 0 0-.66-.38l-1.86 3.22A11.5 11.5 0 0 0 12 8.1c-1.76 0-3.42.39-4.92 1.04L5.22 5.92a.38.38 0 0 0-.66.38L6.4 9.48A10.8 10.8 0 0 0 1 18h22a10.8 10.8 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
+      Baixar para Android
+    </a>
+    <p class="meta" id="meta">Arquivo gachaqui.apk · grátis</p>
+    <div class="qr">
+      <img src="qr.svg" alt="QR code para abrir esta página no celular">
+      <div style="text-align:left">
+        <b style="font-family:var(--display);color:var(--navy)">Está no computador?</b>
+        <p style="margin:6px 0 0">Aponte a câmera do celular para o código e baixe direto no Android. Ou mande este link para os amigos: <b>gachaqui.netlify.app/baixar</b></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Como instalar</h2>
+    <ol class="steps">
+      <li><span>Toque em <b>Baixar para Android</b>. Se o navegador avisar que o arquivo pode ser perigoso, toque em <b>Baixar mesmo assim</b> — o aviso aparece para qualquer app fora da Play Store.</span></li>
+      <li><span>Abra o arquivo <b>gachaqui.apk</b> (na notificação do download ou na pasta Downloads).</span></li>
+      <li><span>Se o Android pedir, permita <b>Instalar apps desconhecidos</b> para o navegador e volte. Toque em <b>Instalar</b>.</span></li>
+      <li><span>Pronto! Abra o <b>Gachaqui</b> pelo ícone. Para atualizar, é só baixar de novo nesta página e instalar por cima (se o Android recusar, desinstale a versão antiga antes).</span></li>
+    </ol>
+  </section>
+
+  <section class="card ios" id="ios">
+    <h2>Tem iPhone?</h2>
+    <p>O app da Apple só sai pela App Store, mas dá para instalar o jogo na tela de início e jogar em tela cheia:</p>
+    <ol class="steps">
+      <li><span>Abra <b>gachaqui.netlify.app</b> no <b>Safari</b>.</span></li>
+      <li><span>Toque em <b>Compartilhar</b> (o quadrado com a seta) e depois em <b>Adicionar à Tela de Início</b>.</span></li>
+    </ol>
+    <p class="center" style="margin-top:14px"><a class="btn alt" href="../">Abrir o jogo</a></p>
+  </section>
+
+  <section class="card">
+    <h2>No app você tem</h2>
+    <div class="grid">
+      <div class="feat"><span class="ic">🌐</span><span><b>Online com o site</b>Mesmo servidor: joga com quem está no navegador.</span></div>
+      <div class="feat"><span class="ic">📱</span><span><b>Tela cheia</b>Sem barra de endereço e sem o navegador fechando a aba.</span></div>
+      <div class="feat"><span class="ic">🔁</span><span><b>Reconecta sozinho</b>Caiu a internet? A sala espera você por 30 segundos.</span></div>
+      <div class="feat"><span class="ic">💬</span><span><b>Convite fácil</b>Mande o link da sala pelo WhatsApp em um toque.</span></div>
+      <div class="feat"><span class="ic">🏆</span><span><b>Torneio e tutorial</b>8 capitães, tutorial com o Roku e jogo contra a IA — até sem internet.</span></div>
+      <div class="feat"><span class="ic">⚔️</span><span><b>O mesmo jogo</b>Mesmas cartas, regras e personagens do site.</span></div>
+    </div>
+  </section>
+
+  <p class="center"><a class="btn alt" href="../">Prefiro jogar no navegador</a></p>
+  <footer>Gachaqui · <a href="https://github.com/darkblacks/Jogo_Ynana/releases">todas as versões</a></footer>
+</main>
+
+<script>
+  // iPhone: mostra a explicação da tela de início primeiro
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    const ios = document.getElementById('ios');
+    ios.classList.add('show');
+    document.querySelector('main').insertBefore(ios, document.getElementById('android'));
+  } else {
+    document.getElementById('ios').classList.add('show');
+  }
+  // versão, tamanho e data da última versão (API pública do GitHub)
+  fetch('https://api.github.com/repos/darkblacks/Jogo_Ynana/releases/latest')
+    .then((r) => (r.ok ? r.json() : Promise.reject()))
+    .then((rel) => {
+      const apk = (rel.assets || []).find((a) => a.name === 'gachaqui.apk');
+      if (!apk) return;
+      const mb = (apk.size / 1048576).toFixed(1).replace('.', ',');
+      const data = new Date(rel.published_at).toLocaleDateString('pt-BR');
+      const versao = (rel.tag_name || '').replace(/^app-v/, '');
+      document.getElementById('meta').textContent = `Versão ${versao} · ${mb} MB · atualizado em ${data} · grátis`;
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>

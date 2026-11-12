@@ -12,6 +12,6 @@ rmSync(destino, { recursive: true, force: true });
 cpSync(origem, destino, {
   recursive: true,
   // arquivos só do site/Netlify não vão para o app
-  filter: (p) => !/(netlify\.toml|gerar-config\.mjs|sw\.js|\.nojekyll)$/.test(p),
+  filter: (p) => !/(netlify\.toml|gerar-config\.mjs|sw\.js|\.nojekyll)$/.test(p) && !/[\\/]baixar([\\/]|$)/.test(p),
 });
 console.log('Site copiado para', destino);

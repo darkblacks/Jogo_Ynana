@@ -12,3 +12,19 @@
   for = "/js/*"
   [headers.values]
     Cache-Control = "no-cache"
+
+# Atalhos para a página de download do app
+[[redirects]]
+  from = "/app"
+  to = "/baixar/"
+  status = 301
+
+[[redirects]]
+  from = "/download"
+  to = "/baixar/"
+  status = 301
+
+[[redirects]]
+  from = "/android"
+  to = "/baixar/"
+  status = 301
