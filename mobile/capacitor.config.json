@@ -1,0 +1,27 @@
+{
+  "appId": "com.gachaqui.app",
+  "appName": "Gachaqui",
+  "webDir": "www",
+  "backgroundColor": "#12204a",
+  "android": {
+    "backgroundColor": "#12204a",
+    "allowMixedContent": false
+  },
+  "ios": {
+    "backgroundColor": "#12204a",
+    "contentInset": "never"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": false,
+      "backgroundColor": "#12204a",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "backgroundColor": "#12204a",
+      "style": "DARK",
+      "overlaysWebView": false
+    }
+  }
+}

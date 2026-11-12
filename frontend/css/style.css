@@ -536,3 +536,27 @@ button { font: inherit; }
 }
 .net-banner.show { opacity: 1; transform: translate(-50%, 0); }
 .btn.danger { color: var(--crimson) !important; box-shadow: inset 0 0 0 2px var(--crimson); }
+
+/* ---------- celular: app (Capacitor) e site instalado ---------- */
+.app-btn { text-align: center; text-decoration: none; background: linear-gradient(180deg, #3d7a3a, #24522a); }
+.ios-tip { font-size: .9rem; text-align: center; color: var(--ink-soft); margin: 4px 0 0; }
+.app-bar {
+  position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 70;
+  display: flex; align-items: center; gap: 8px; justify-content: center; flex-wrap: wrap;
+  background: rgba(18,32,74,.97); color: var(--parch); padding: 10px 12px; border-radius: 12px; box-shadow: 0 0 0 2px var(--gold-2), 0 8px 24px rgba(0,0,0,.5);
+}
+.app-bar a { text-decoration: none; }
+/* áreas seguras (entalhe, barra de gestos) */
+.hud { padding-top: max(8px, env(safe-area-inset-top)); padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+.hand { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+.screen { padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+.net-banner { top: calc(64px + env(safe-area-inset-top)); }
+/* no app: sem seleção de texto, sem menu de toque longo, sem "puxar para atualizar" */
+html.native, html.native body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+html.native input { -webkit-user-select: text; user-select: text; }
+html.native * { -webkit-tap-highlight-color: transparent; }
+/* celular em pé: cartas da mão maiores, aproveitando a altura da tela */
+@media (max-width: 700px) and (orientation: portrait) and (min-height: 700px) {
+  :root { --card-w: clamp(74px, 21vw, 118px); }
+  .table { align-items: center; }
+}

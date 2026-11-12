@@ -2,7 +2,8 @@ import * as E from './engine.js';
 import { decideAction, chooseMareGive, chooseSteal, LEVELS } from './ai.js';
 import * as T from './tournament.js';
 import { RULES_HTML } from './rules.js';
-import { SERVER_URL } from './config.js';
+import { SERVER_URL, PUBLIC_URL, APP_DOWNLOAD_URL } from './config.js';
+import * as N from './native.js';
 import { CHARACTERS, charById, lineFor, initials } from './characters.js';
 import { tutorialState, TUTORIAL } from './tutorial.js';
 
@@ -39,6 +40,7 @@ function go(name) {
   document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === 'scr-' + name));
   if (name === 'menu') refreshMenu();
   if (name === 'quick') renderLevels();
+  N.keepAwake(name === 'game'); // tela acesa durante a partida
   window.scrollTo(0, 0);
 }
 document.addEventListener('click', (e) => {
@@ -780,7 +782,12 @@ function renderHand() {
   el.innerHTML = '';
   if (!hand.length) { el.append(h('div', 'empty-hand', 'Sua mão está vazia.')); return; }
   const w = el.clientWidth - 24;
-  const cw = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || 104;
+  // mede a largura real da carta (o CSS pode usar clamp/vw, que não dá para ler como número)
+  const probe = h('div', 'hcard');
+  probe.style.visibility = 'hidden';
+  el.append(probe);
+  const cw = probe.getBoundingClientRect().width || 104;
+  probe.remove();
   const need = hand.length * (cw + 6);
   el.style.setProperty('--overlap', need > w ? `${Math.max(-cw * 0.62, (w - cw) / Math.max(1, hand.length - 1) - cw)}px` : '6px');
   const myTurn = awaiting === 'action';
@@ -922,6 +929,7 @@ async function showCombat(ev) {
   if (ev.fell && ev.base === 'torre') extra.push(me ? 'Você vai pegar 1 carta da mão do adversário.' : `${G.names[AI]} vai pegar 1 carta da sua mão.`);
   const res = $('#c-res');
   res.className = 'result show ' + (neutral ? 'neutral' : good ? 'good' : 'bad');
+  if (ev.result === 'hit' || ev.result === 'pierce') N.buzz(ev.fell);
   res.innerHTML = esc(main) + (extra.length ? `<small>${extra.map(esc).join('<br>')}</small>` : '');
   render();
   await clickOrWait(ev.fell ? 2600 : 1900);
@@ -1197,7 +1205,8 @@ const saveRoom = (r) => { try { r ? localStorage.setItem(ROOM_KEY, JSON.stringif
 function serverBase() {
   const raw = (SERVER_URL || '').trim().replace(/\/+$/, '');
   // rodando local (localhost) com o backend entregando o site: usa o mesmo endereço
-  if (!raw || ['localhost', '127.0.0.1'].includes(location.hostname)) return location.origin;
+  // no app o site vem de dentro do aparelho, então o servidor é sempre o configurado
+  if (!raw || (!N.NATIVE && ['localhost', '127.0.0.1'].includes(location.hostname))) return location.origin;
   return raw.replace(/^ws(s?):/, 'http$1:').replace(/\/ws$/, '');
 }
 function serverUrl() {
@@ -1223,7 +1232,9 @@ async function checkServer() {
   }
 }
 function roomLink(code) {
-  return `${location.origin}${location.pathname}?sala=${code}`;
+  // de dentro do app, o convite aponta para o site (quem tem o app abre direto nele)
+  const base = N.NATIVE || location.protocol === 'file:' ? `${PUBLIC_URL.replace(/\/+$/, '')}/` : `${location.origin}${location.pathname}`;
+  return `${base}?sala=${code}`;
 }
 
 function onlineError(msg) { $('#on-error').textContent = msg || ''; }
@@ -1303,7 +1314,7 @@ $('#on-copy').onclick = async () => {
   try { await navigator.clipboard.writeText(inp.value); toast('Link copiado!', 'sea'); }
   catch { inp.select(); document.execCommand('copy'); toast('Link copiado!', 'sea'); }
 };
-$('#on-share').onclick = () => navigator.share({ title: 'Gachaqui', text: 'Bora jogar Gachaqui comigo?', url: $('#on-link').value }).catch(() => {});
+$('#on-share').onclick = () => N.shareLink({ title: 'Gachaqui', text: `Bora jogar Gachaqui comigo? Sala ${$('#on-codeshow').textContent}`, url: $('#on-link').value });
 
 async function resumeOnline(r) {
   net.room = r; net.v = -1; net.wantOpen = true;
@@ -1326,7 +1337,7 @@ function showWaitingRoom(code) {
   $('#on-wait').hidden = false;
   $('#on-link').value = roomLink(code);
   $('#on-codeshow').textContent = code;
-  $('#on-share').hidden = !navigator.share;
+  $('#on-share').hidden = !N.canShare();
 }
 
 function onMessage(msg) {
@@ -1463,18 +1474,62 @@ function updateRematchModal() {
   if (b) { b.disabled = me; b.textContent = them && !me ? 'Aceitar revanche' : 'Revanche'; }
 }
 
-// link de convite: ?sala=CODIGO
+// link de convite: ?sala=CODIGO (no site) ou gachaqui://sala/CODIGO (no app)
+function openInvite(code) {
+  code = String(code).toUpperCase();
+  const saved = loadRoom();
+  if (saved && saved.code === code) { resumeOnline(saved); return; }
+  if (G && G.mode === 'online' && net.room && net.room.code === code) return; // já está nela
+  openOnlineScreen(code);
+  // já sabemos o nome: entra direto na sala
+  if (SAVE.playerName) $('#on-join').click();
+  else $('#on-name').focus();
+}
 (() => {
   const code = new URLSearchParams(location.search).get('sala');
   if (!code) return;
-  const saved = loadRoom();
-  if (saved && saved.code === code.toUpperCase()) resumeOnline(saved);
-  else {
-    openOnlineScreen(code.toUpperCase());
-    // já sabemos o nome: entra direto na sala
-    if (SAVE.playerName) $('#on-join').click();
-    else $('#on-name').focus();
+  openInvite(code);
+  // no navegador do Android: oferece abrir o convite no app
+  if (N.IS_ANDROID_WEB && APP_DOWNLOAD_URL) {
+    const bar = h('div', 'app-bar', `Tem o app do Gachaqui? <a class="btn small sea" href="${N.appIntentUrl(code, location.href)}">Abrir no app</a> <button class="btn small ghost" aria-label="Fechar">×</button>`);
+    bar.querySelector('button').onclick = () => bar.remove();
+    document.body.append(bar);
   }
+})();
+
+// ---------------- celular (app) ----------------
+N.startNative();
+N.registerServiceWorker();
+N.onDeepLink((code) => openInvite(code));
+N.onResume(() => {
+  // voltou para o app: reconecta na hora, sem esperar o próximo ciclo
+  if (net.wantOpen && net.room && (!net.ws || net.ws.readyState > 1)) reconnect();
+});
+N.onBackButton(() => {
+  // botão voltar do Android: fecha janela > pausa a partida > volta ao menu > sai do app
+  if (!$('#modal').hidden) {
+    if ($('#q-back')) $('#q-back').click();
+    else if ($('#tq-no')) $('#tq-no').click();
+    else if ($('#sr-no')) $('#sr-no').click();
+    else if (!$('#pick') && !$('#vs-go')) $('#modal').click();
+    return;
+  }
+  if ($('#log').classList.contains('open')) { $('#log').classList.remove('open'); return; }
+  const cur = document.querySelector('.screen.active');
+  const name = cur ? cur.id.replace('scr-', '') : 'menu';
+  if (name === 'game') { $('#btn-quit').click(); return; }
+  if (name === 'menu') { N.exitApp(); return; }
+  if (name === 'online') { $('#on-back').click(); return; }
+  if (name === 'rules') { go(prevScreen === 'rules' ? 'menu' : prevScreen); return; }
+  go('menu');
+});
+// botão de baixar o app (só no site)
+(() => {
+  const b = $('#btn-app');
+  if (!b) return;
+  if (!N.NATIVE && APP_DOWNLOAD_URL && !N.IS_IOS_WEB && !N.IS_STANDALONE) { b.hidden = false; b.href = APP_DOWNLOAD_URL; }
+  const tip = $('#ios-tip');
+  if (tip && N.IS_IOS_WEB && !N.IS_STANDALONE) tip.hidden = false;
 })();
 for (const id of ['#on-code', '#on-name']) {
   $(id).addEventListener('keydown', (e) => {

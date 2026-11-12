@@ -43,7 +43,7 @@ function originAllowed(origin, host) {
     } catch { return false; }
   });
 }
-const PUBLIC = ['index.html', 'css', 'js', 'assets'];
+const PUBLIC = ['index.html', 'css', 'js', 'assets', 'fonts', 'manifest.webmanifest', 'sw.js'];
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -52,6 +52,8 @@ const TYPES = {
   '.png': 'image/png',
   '.json': 'application/json',
   '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2',
+  '.webmanifest': 'application/manifest+json',
 };
 
 const server = http.createServer(async (req, res) => {

@@ -3,11 +3,18 @@
 Jogo de cartas de ataque e defesa para navegador: contra a IA, em torneio eliminatório de 8 jogadores ou online contra um amigo.
 
 ```
+mobile/     app de celular (Android/iOS) com o mesmo jogo — veja mobile/LEIA-ME.md
 frontend/   site estático (vai para o Netlify: gachaqui.netlify.app)
 backend/    servidor do modo online (Node + WebSocket), vai para o seu servidor
 deploy/     instalador do backend e instruções para o Claude Code
 tools/      simulador de testes
 ```
+
+## App de celular
+
+O jogo também é um app Android (e iOS), feito com Capacitor a partir do mesmo código do site, jogando online com quem está no navegador. O APK é gerado automaticamente pelo GitHub Actions a cada atualização e fica em **Releases**:
+`https://github.com/darkblacks/Jogo_Ynana/releases/latest/download/gachaqui.apk`.
+No iPhone, o site pode ser instalado na tela de início (abre em tela cheia). Detalhes em [mobile/LEIA-ME.md](mobile/LEIA-ME.md).
 
 ## Publicar
 

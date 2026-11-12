@@ -1,0 +1,27 @@
+{
+  "name": "gachaqui-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "App de celular do Gachaqui (Capacitor): o mesmo jogo do site, empacotado como app",
+  "type": "module",
+  "scripts": {
+    "copiar-web": "node scripts/copiar-web.mjs",
+    "sync": "npm run copiar-web && cap sync",
+    "android:apk": "npm run sync && cd android && ./gradlew assembleDebug",
+    "android:abrir": "npm run sync && cap open android",
+    "ios:abrir": "npm run sync && cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/ios": "8.6.0",
+    "@capacitor/share": "8.0.3",
+    "@capacitor/splash-screen": "8.0.2",
+    "@capacitor/status-bar": "8.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  }
+}

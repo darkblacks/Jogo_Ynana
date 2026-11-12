@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gachaqui</string>
+    <string name="title_activity_main">Gachaqui</string>
+    <string name="package_name">com.gachaqui.app</string>
+    <string name="custom_url_scheme">com.gachaqui.app</string>
+</resources>

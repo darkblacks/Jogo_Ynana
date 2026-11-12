@@ -5,11 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Gachaqui</title>
   <meta name="description" content="Gachaqui — jogo de cartas de ataque e defesa. Jogue contra a IA ou dispute um torneio de 8 jogadores.">
-  <meta name="theme-color" content="#1d2a4a">
-  <link rel="icon" href="assets/cards/atk9.webp">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@600;800&family=Alegreya:ital,wght@0,400;0,600;0,800;1,400&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#12204a">
+  <link rel="icon" href="assets/icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gachaqui">
+  <link rel="stylesheet" href="fonts/fonts.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -27,6 +31,8 @@
         <button class="btn big" data-go="quick">Partida rápida</button>
         <button class="btn big sea" id="btn-online">Jogar com um amigo</button>
         <button class="btn big ghost" data-go="rules">Como jogar</button>
+        <a class="btn big app-btn" id="btn-app" hidden download>📱 Baixar app Android</a>
+        <p class="ios-tip" id="ios-tip" hidden>No iPhone: toque em <b>Compartilhar</b> e depois em <b>Adicionar à Tela de Início</b> para jogar em tela cheia, como app.</p>
       </div>
       <div class="menu-cards" aria-hidden="true">
         <img src="assets/cards/atk9.webp" alt=""><img src="assets/cards/mare.webp" alt=""><img src="assets/cards/def9.webp" alt="">
