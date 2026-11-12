@@ -1,0 +1,175 @@
+# Gera os apps do Gachaqui a cada atualização do jogo e publica em "Releases":
+#   Android: gachaqui.apk  →  https://github.com/<dono>/<repo>/releases/latest/download/gachaqui.apk
+#   iPhone:  gachaqui.ipa  →  https://github.com/<dono>/<repo>/releases/latest/download/gachaqui.ipa
+# Página de download para os amigos: https://gachaqui.netlify.app/baixar
+name: Apps (Android e iPhone)
+
+on:
+  push:
+    branches: [main, master, claude/serene-goodall-ko7s49]
+    paths:
+      - 'frontend/**'
+      - 'mobile/**'
+      - '.github/workflows/apps.yml'
+  workflow_dispatch: # botão "Run workflow" na aba Actions
+
+permissions:
+  contents: write # para publicar em Releases
+
+concurrency:
+  group: apps
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android (APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # As máquinas do GitHub já têm o SDK do Android (ANDROID_HOME); o Gradle baixa o que faltar.
+      - name: Conferir o SDK do Android
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Instalar dependências e copiar o site para o app
+        working-directory: mobile
+        run: |
+          npm ci
+          npm run sync
+
+      - name: Compilar o APK
+        working-directory: mobile/android
+        env:
+          GACHAQUI_VERSION_NAME: 1.1.${{ github.run_number }}
+          KEYSTORE_BASE64: ${{ secrets.GACHAQUI_KEYSTORE_BASE64 }}
+          GACHAQUI_KEYSTORE_PASSWORD: ${{ secrets.GACHAQUI_KEYSTORE_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          # número da versão sempre maior que o das versões 1.0.x (senão o Android não aceita atualizar)
+          export GACHAQUI_VERSION_CODE=$((100 + GITHUB_RUN_NUMBER))
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$GACHAQUI_KEYSTORE_PASSWORD" ]; then
+            # chave própria (segredos do repositório): mesma assinatura em todos os builds
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/gachaqui.keystore"
+            export GACHAQUI_KEYSTORE="$RUNNER_TEMP/gachaqui.keystore"
+            ./gradlew assembleRelease --no-daemon --stacktrace
+            cp app/build/outputs/apk/release/app-release.apk ../../gachaqui.apk
+            echo "propria" > ../../assinatura-android.txt
+          else
+            echo "::warning::Segredos GACHAQUI_KEYSTORE_BASE64/GACHAQUI_KEYSTORE_PASSWORD não configurados: gerando APK de teste (debug)."
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            cp app/build/outputs/apk/debug/app-debug.apk ../../gachaqui.apk
+            echo "teste" > ../../assinatura-android.txt
+          fi
+          rm -f "$RUNNER_TEMP/gachaqui.keystore"
+          ls -la ../../gachaqui.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: |
+            gachaqui.apk
+            assinatura-android.txt
+
+  ios:
+    name: iPhone (IPA)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Usar o Xcode mais novo da máquina
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app | grep -v -i beta | sort -V | tail -1)
+          echo "Xcode escolhido: $XC"
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
+
+      - name: Instalar dependências e copiar o site para o app
+        working-directory: mobile
+        run: |
+          npm ci
+          npm run sync
+
+      - name: Compilar o app de iPhone
+        working-directory: mobile/ios/App
+        run: |
+          # Compilado sem assinatura: quem instala assina com o próprio Apple ID (Sideloadly/AltStore).
+          xcodebuild -project App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION=1.1.${{ github.run_number }} CURRENT_PROJECT_VERSION=$((100 + GITHUB_RUN_NUMBER)) \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -n 40
+          APP=build/Build/Products/Release-iphoneos/App.app
+          test -d "$APP"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry ../../../gachaqui.ipa Payload
+          ls -la ../../../gachaqui.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: gachaqui.ipa
+
+  release:
+    name: Publicar em Releases
+    needs: [android, ios]
+    # publica mesmo se o iPhone falhar (o Android não fica esperando)
+    if: ${{ always() && needs.android.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Montar a descrição
+        run: |
+          ls -la
+          ASS=$(cat assinatura-android.txt 2>/dev/null || echo teste)
+          {
+            echo "Apps do Gachaqui, gerados automaticamente. Página de download: https://gachaqui.netlify.app/baixar"
+            echo
+            echo "**Android:** baixe o \`gachaqui.apk\` no celular e abra para instalar (permita \"instalar apps desconhecidos\")."
+            if [ "$ASS" = "teste" ]; then echo "Assinatura de teste: se o Android recusar a atualização, desinstale a versão anterior."; fi
+            echo
+            if [ -f gachaqui.ipa ]; then
+              echo "**iPhone:** o \`gachaqui.ipa\` se instala com o Sideloadly ou o AltStore usando seu Apple ID (veja a página de download)."
+            else
+              echo "**iPhone:** o build do iPhone falhou nesta versão; use o jogo pelo Safari (Adicionar à Tela de Início)."
+            fi
+            echo
+            echo "O modo online usa o mesmo servidor do site: quem está no app joga com quem está no navegador."
+          } > notas.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-v1.1.${{ github.run_number }}
+          name: Gachaqui 1.1.${{ github.run_number }} (Android e iPhone)
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body_path: notas.md
+          fail_on_unmatched_files: false
+          files: |
+            gachaqui.apk
+            gachaqui.ipa

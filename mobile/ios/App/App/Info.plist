@@ -5,7 +5,20 @@
   <key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>pt-BR</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.gachaqui.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>gachaqui</string>
+			</array>
+		</dict>
+	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CFBundleDisplayName</key>
         <string>Gachaqui</string>
 	<key>CFBundleExecutable</key>

@@ -1527,9 +1527,7 @@ N.onBackButton(() => {
 (() => {
   const b = $('#btn-app');
   if (!b) return;
-  if (!N.NATIVE && APP_DOWNLOAD_URL && !N.IS_IOS_WEB && !N.IS_STANDALONE) { b.hidden = false; b.href = 'baixar/'; b.removeAttribute('download'); }
-  const tip = $('#ios-tip');
-  if (tip && N.IS_IOS_WEB && !N.IS_STANDALONE) tip.hidden = false;
+  if (!N.NATIVE && APP_DOWNLOAD_URL && !N.IS_STANDALONE) { b.hidden = false; b.href = 'baixar/'; }
 })();
 for (const id of ['#on-code', '#on-name']) {
   $(id).addEventListener('keydown', (e) => {

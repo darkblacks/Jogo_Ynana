@@ -16,13 +16,13 @@ O que muda no app em relação ao navegador:
 
 Não precisa instalar nada no computador. A cada atualização enviada ao GitHub (pastas `frontend/` ou `mobile/`), o GitHub Actions compila o APK sozinho:
 
-1. Abra a aba **Actions** do repositório e veja o fluxo **App Android (APK)** rodar (uns 5 minutos).
+1. Abra a aba **Actions** do repositório e veja o fluxo **Apps (Android e iPhone)** rodar (uns 5 minutos).
 2. Quando terminar, o APK aparece em **Releases** como `gachaqui.apk`.
 3. Link fixo da versão mais nova (para mandar aos amigos):
    `https://github.com/darkblacks/Jogo_Ynana/releases/latest/download/gachaqui.apk`
    - Se o repositório for **privado**, esse link só funciona para quem tem acesso. Nesse caso, baixe o APK e mande o arquivo pelo WhatsApp/Drive.
 
-Para gerar de novo sem mudar nada: **Actions → App Android (APK) → Run workflow**.
+Para gerar de novo sem mudar nada: **Actions → Apps (Android e iPhone) → Run workflow**.
 
 ### Instalar no celular
 
@@ -38,7 +38,7 @@ O Android só aceita atualizar um app por cima se todas as versões tiverem a **
 2. No GitHub: **Settings → Secrets and variables → Actions → New repository secret** e crie:
    - `GACHAQUI_KEYSTORE_BASE64` = todo o conteúdo de `gachaqui-keystore-base64.txt`
    - `GACHAQUI_KEYSTORE_PASSWORD` = a senha de `gachaqui-keystore-senha.txt`
-3. **Actions → App Android (APK) → Run workflow** para gerar o primeiro APK assinado.
+3. **Actions → Apps (Android e iPhone) → Run workflow** para gerar o primeiro APK assinado.
 
 Sem esses segredos, o fluxo ainda gera um APK que instala e funciona normalmente, só que de "teste": cada versão nova pede para desinstalar a anterior antes.
 
@@ -63,8 +63,28 @@ npm run android:abrir    # ou abre o projeto no Android Studio
 
 ## iPhone
 
-- **Jeito mais fácil (sem App Store):** abra `https://gachaqui.netlify.app` no Safari → **Compartilhar** → **Adicionar à Tela de Início**. O jogo abre em tela cheia, com ícone próprio, como um app, e funciona sem internet contra a IA.
-- **App nativo:** o projeto iOS já está em `mobile/ios`. Para gerar é preciso um Mac com Xcode (`npm run ios:abrir`). Para mandar a amigos, a Apple exige conta de desenvolvedor (TestFlight).
+O GitHub Actions também compila o app de iPhone (numa máquina Mac do GitHub, de graça para repositório público) e publica o `gachaqui.ipa` junto com o APK, na mesma versão:
+`https://github.com/darkblacks/Jogo_Ynana/releases/latest/download/gachaqui.ipa`
+
+A Apple só deixa instalar app de fora da App Store se ele estiver assinado. O IPA sai **sem assinatura**, e cada pessoa assina com o próprio Apple ID na hora de instalar:
+
+- **Sideloadly** (Windows/Mac, sideloadly.io): liga o iPhone no cabo, arrasta o `.ipa`, digita o Apple ID, Start. Depois, no iPhone: Ajustes → Geral → VPN e Gerenciamento de Dispositivo → Confiar; e no iOS 16+, Ajustes → Privacidade e Segurança → Modo de Desenvolvedor.
+- Com Apple ID **grátis**, a assinatura vale 7 dias (repita o processo para renovar; o **AltStore** renova sozinho pelo Wi-Fi). Limite de 3 apps assim por Apple ID.
+- **Sem computador:** Safari → `gachaqui.netlify.app` → Compartilhar → Adicionar à Tela de Início (tela cheia, funciona sem internet contra a IA).
+
+A página https://gachaqui.netlify.app/baixar explica tudo isso para os amigos.
+
+### Para ninguém precisar de computador: TestFlight
+
+Com uma conta **Apple Developer** (US$ 99/ano), dá para distribuir pelo **TestFlight**: os amigos instalam o app TestFlight da App Store e entram por um link de convite (até 10.000 pessoas, cada versão vale 90 dias). Para ligar isso no GitHub Actions são necessários, como segredos do repositório: o certificado de distribuição (`.p12` + senha), o perfil de provisionamento e uma chave da API do App Store Connect. Quando tiver a conta, dá para acrescentar esse passo no fluxo `apps.yml`.
+
+### Gerar no próprio Mac (opcional)
+
+```bash
+cd mobile
+npm ci
+npm run ios:abrir   # abre no Xcode; escolha seu time em Signing & Capabilities e rode no iPhone
+```
 
 ## Atualizar o app quando o jogo mudar
 

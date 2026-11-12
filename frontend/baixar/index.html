@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Baixar Gachaqui para Android</title>
-  <meta name="description" content="Baixe o app do Gachaqui para Android e jogue com seus amigos — contra a IA, em torneio ou online com quem está no site.">
+  <title>Baixar Gachaqui para Android e iPhone</title>
+  <meta name="description" content="Baixe o app do Gachaqui para Android e iPhone e jogue com seus amigos — contra a IA, em torneio ou online com quem está no site.">
   <meta name="theme-color" content="#12204a">
-  <meta property="og:title" content="Gachaqui — baixe o app para Android">
+  <meta property="og:title" content="Gachaqui — baixe o app para Android e iPhone">
   <meta property="og:description" content="Jogo de cartas de ataque e defesa. Jogue online com os amigos, no app ou no navegador.">
   <meta property="og:image" content="https://gachaqui.netlify.app/assets/icons/icon-512.png">
   <meta property="og:url" content="https://gachaqui.netlify.app/baixar/">
@@ -58,6 +58,7 @@
     .btn:hover { filter: brightness(1.08); }
     .btn:active { transform: translateY(3px); }
     .btn svg { width: 30px; height: 30px; flex: none; }
+    .btn.ios-btn { background: linear-gradient(180deg, #3b3f4a, #15171c); margin-bottom: 0; }
     .btn.alt { background: linear-gradient(180deg, #2b4382, var(--navy-2)); font-size: 1.05rem; padding: 12px 20px; min-width: 0; }
     .meta { margin: 10px 0 0; color: var(--ink-soft); font-size: .95rem; min-height: 1.3em; }
     .steps { counter-reset: s; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
@@ -120,8 +121,23 @@
   </section>
 
   <section class="card ios" id="ios">
-    <h2>Tem iPhone?</h2>
-    <p>O app da Apple só sai pela App Store, mas dá para instalar o jogo na tela de início e jogar em tela cheia:</p>
+    <h2>App para iPhone</h2>
+    <div class="download">
+      <a class="btn ios-btn" id="dl-ios" href="https://github.com/darkblacks/Jogo_Ynana/releases/latest/download/gachaqui.ipa" download>
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.19-1.73-1.36-.14-2.65.8-3.34.8-.69 0-1.75-.78-2.88-.76-1.48.02-2.85.86-3.61 2.19-1.54 2.67-.39 6.62 1.11 8.79.73 1.06 1.6 2.25 2.75 2.2 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.71.71 2.88.69 1.19-.02 1.94-1.08 2.66-2.14.84-1.23 1.19-2.42 1.21-2.48-.03-.01-2.32-.89-2.34-3.52zM14.2 6.13c.61-.74 1.02-1.76.91-2.78-.88.04-1.94.59-2.57 1.32-.56.65-1.06 1.69-.93 2.69.98.08 1.98-.5 2.59-1.23z"/></svg>
+        Baixar para iPhone
+      </a>
+      <p class="meta" id="meta-ios">Arquivo gachaqui.ipa · grátis</p>
+    </div>
+    <p>A Apple só deixa instalar apps de fora da App Store com uma assinatura. Com o seu Apple ID (o mesmo do iCloud, grátis) dá para assinar sozinho, usando um computador uma vez:</p>
+    <ol class="steps">
+      <li><span>No computador (Windows ou Mac), instale o <b>Sideloadly</b> (sideloadly.io) e baixe o <b>gachaqui.ipa</b> pelo botão acima.</span></li>
+      <li><span>Ligue o iPhone no computador pelo cabo, arraste o <b>gachaqui.ipa</b> para o Sideloadly, digite o seu Apple ID e clique em <b>Start</b>.</span></li>
+      <li><span>No iPhone: <b>Ajustes → Geral → VPN e Gerenciamento de Dispositivo</b> → toque no seu Apple ID → <b>Confiar</b>. No iOS 16 ou mais novo, ligue também <b>Ajustes → Privacidade e Segurança → Modo de Desenvolvedor</b>.</span></li>
+      <li><span>Pronto! Com Apple ID grátis, a assinatura vale <b>7 dias</b>: depois disso, repita o passo 2 (o jogo e o progresso continuam). O <b>AltStore</b> faz essa renovação sozinho pelo Wi-Fi.</span></li>
+    </ol>
+    <h2 style="margin-top:20px">Sem computador?</h2>
+    <p>Instale o jogo direto pelo Safari, em tela cheia, como app:</p>
     <ol class="steps">
       <li><span>Abra <b>gachaqui.netlify.app</b> no <b>Safari</b>.</span></li>
       <li><span>Toque em <b>Compartilhar</b> (o quadrado com a seta) e depois em <b>Adicionar à Tela de Início</b>.</span></li>
@@ -158,12 +174,21 @@
   fetch('https://api.github.com/repos/darkblacks/Jogo_Ynana/releases/latest')
     .then((r) => (r.ok ? r.json() : Promise.reject()))
     .then((rel) => {
-      const apk = (rel.assets || []).find((a) => a.name === 'gachaqui.apk');
-      if (!apk) return;
-      const mb = (apk.size / 1048576).toFixed(1).replace('.', ',');
       const data = new Date(rel.published_at).toLocaleDateString('pt-BR');
       const versao = (rel.tag_name || '').replace(/^app-v/, '');
-      document.getElementById('meta').textContent = `Versão ${versao} · ${mb} MB · atualizado em ${data} · grátis`;
+      const info = (name, el) => {
+        const a = (rel.assets || []).find((x) => x.name === name);
+        if (!a) return false;
+        const mb = (a.size / 1048576).toFixed(1).replace('.', ',');
+        document.getElementById(el).textContent = `Versão ${versao} · ${mb} MB · atualizado em ${data} · grátis`;
+        return true;
+      };
+      info('gachaqui.apk', 'meta');
+      if (!info('gachaqui.ipa', 'meta-ios')) {
+        // ainda não há app de iPhone nesta versão: fica só a opção do Safari
+        document.getElementById('dl-ios').style.display = 'none';
+        document.getElementById('meta-ios').textContent = 'O app de iPhone está sendo preparado — por enquanto, use a opção do Safari abaixo.';
+      }
     })
     .catch(() => {});
 </script>
